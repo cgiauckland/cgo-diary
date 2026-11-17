@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>CGO Diary</title>
+<!-- v3: encrypted diary - the server stores ciphertext only -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
@@ -18,6 +19,7 @@
     --amber: #b97708;
     --amber-bg: #fdf3e0;
     --red: #b3372e;
+    --red-bg: #fbeeec;
     --green: #2e7d4f;
   }
   * { box-sizing: border-box; }
@@ -52,20 +54,43 @@
   }
   main { max-width: 680px; margin: 0 auto; padding: 14px; }
 
-  /* login */
-  #login-view { text-align: center; padding-top: 10vh; }
-  #login-view .box {
+  /* login + unlock */
+  #login-view, #unlock-view { text-align: center; padding-top: 10vh; }
+  .authbox {
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: 28px 20px;
     display: inline-block;
     min-width: 280px;
+    max-width: 340px;
   }
-  #login-view h2 { margin: 0 0 6px; font-size: 18px; color: var(--navy); }
-  #login-view p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+  .authbox h2 { margin: 0 0 6px; font-size: 18px; color: var(--navy); }
+  .authbox p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
   #gbtn { display: flex; justify-content: center; }
-  #login-error { color: var(--red); font-size: 13px; margin-top: 14px; max-width: 300px; }
+  .auth-error { color: var(--red); font-size: 13px; margin-top: 14px; max-width: 300px; }
+  #unlock-pass {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 15px;
+    text-align: center;
+    letter-spacing: .5px;
+  }
+  #btn-unlock {
+    margin-top: 12px;
+    width: 100%;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #btn-unlock:disabled { opacity: .6; }
+  .lockline { font-size: 11.5px; color: var(--muted); margin-top: 14px; }
 
   /* toolbar */
   .toolbar {
@@ -89,43 +114,83 @@
   .btn:disabled { opacity: .5; cursor: default; }
 
   /* agenda */
-  .day { margin-bottom: 16px; }
+  .day { margin-bottom: 22px; }
   .day h3 {
-    font-size: 13px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12px;
     text-transform: uppercase;
-    letter-spacing: .5px;
+    letter-spacing: .6px;
     color: var(--muted);
-    margin: 0 0 6px;
-    padding-bottom: 3px;
-    border-bottom: 1px solid var(--line);
+    margin: 0 0 8px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid var(--line);
   }
+  .day h3 .dname { font-size: 16px; color: var(--navy); letter-spacing: .2px; }
   .day h3 .today-tag { color: var(--green); font-weight: 700; }
+  .day h3 .count { margin-left: auto; font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 12px; }
   .card {
     background: var(--card);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 10px 12px;
     margin-bottom: 8px;
+    display: flex;
+    gap: 12px;
+    box-shadow: 0 1px 2px rgba(22, 41, 91, .05);
   }
-  .card .time { font-weight: 700; font-size: 13px; color: var(--navy); }
-  .card .title { font-size: 15px; margin: 2px 0; }
-  .card .venue { font-size: 13px; color: var(--muted); }
-  .card .venue a { color: var(--navy-light); text-decoration: none; }
-  .card .notes { font-size: 13px; color: var(--ink); margin-top: 6px; white-space: pre-wrap; border-top: 1px dashed var(--line); padding-top: 6px; }
-  .card.travel { border-left: 4px solid var(--red); padding: 6px 12px; }
-  .card.travel .title { font-size: 13px; color: var(--red); margin: 0; }
+  .card.now { border-left: 4px solid var(--green); }
   .card.pending { border-left: 4px solid var(--amber); }
+  .timecol { min-width: 52px; text-align: right; flex-shrink: 0; padding-top: 1px; }
+  .timecol .t1 { font-weight: 700; font-size: 14px; color: var(--navy); }
+  .timecol .t2 { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .timecol .allday { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding-top: 3px; }
+  .cbody { flex: 1; min-width: 0; }
+  .cbody .title { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.35; }
+  .cbody .venue { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .cbody .venue a { color: var(--navy-light); text-decoration: none; }
+  .cbody .notes { font-size: 13px; color: var(--ink); margin-top: 6px; white-space: pre-wrap; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .trow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: -2px 0 8px;
+    padding: 5px 12px 5px 8px;
+    border-radius: 8px;
+    background: var(--red-bg);
+    color: var(--red);
+    font-size: 13px;
+  }
+  .trow .tt { font-weight: 700; min-width: 44px; text-align: right; flex-shrink: 0; }
+  .trow .dest { min-width: 0; }
+  .trow .dur { color: #a06a62; margin-left: auto; white-space: nowrap; font-size: 12px; }
+  .band {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: #e8ebf2;
+    border: 1px dashed #c4ccdc;
+    border-radius: 8px;
+    color: #5a6577;
+    font-size: 12.5px;
+    padding: 6px 12px;
+    margin-bottom: 8px;
+  }
+  .band .tt { font-weight: 700; min-width: 52px; text-align: right; flex-shrink: 0; }
   .badge {
     display: inline-block;
     font-size: 11px;
     font-weight: 700;
     border-radius: 4px;
     padding: 1px 6px;
-    vertical-align: middle;
+    vertical-align: 1px;
     margin-left: 6px;
   }
   .badge.tbc { background: var(--amber-bg); color: var(--amber); }
   .badge.pending { background: #fde8e0; color: var(--red); }
+  .badge.now { background: #e2f2e8; color: var(--green); }
+  .badge.next { background: #e3ebfb; color: #2456b0; }
   .empty { color: var(--muted); font-size: 13px; padding: 4px 2px 10px; }
   .note-line { color: var(--muted); font-size: 12px; margin: 16px 2px; text-align: center; }
 
@@ -190,11 +255,22 @@
 </header>
 
 <main id="login-view">
-  <div class="box">
+  <div class="authbox">
     <h2 id="login-title">CGO Diary</h2>
     <p>Staff sign-in</p>
     <div id="gbtn"></div>
-    <div id="login-error"></div>
+    <div class="auth-error" id="login-error"></div>
+  </div>
+</main>
+
+<main id="unlock-view" hidden>
+  <div class="authbox">
+    <h2>&#128274; Unlock the diary</h2>
+    <p>Enter the diary passphrase the office gave you for your role.</p>
+    <input id="unlock-pass" type="password" autocomplete="off" spellcheck="false" placeholder="passphrase">
+    <button id="btn-unlock">Unlock</button>
+    <div class="auth-error" id="unlock-error"></div>
+    <div class="lockline">The diary is end-to-end encrypted. It is unlocked on this device only; the passphrase is never sent anywhere.</div>
   </div>
 </main>
 
@@ -276,6 +352,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbw4BFAy7S9VagbFiGFTDUNf
 const GOOGLE_CLIENT_ID = '721681778203-jna9nvll5hbd6ltecelb3vo3m6vqntrl.apps.googleusercontent.com';
 const APP_TITLE = 'CGO Diary';
 const WINDOW_DAYS = 14;
+const PBKDF2_ITER = 310000;
 // -----------------------------------------------------------------------
 
 document.getElementById('app-title').textContent = APP_TITLE;
@@ -284,10 +361,64 @@ document.getElementById('login-title').textContent = APP_TITLE;
 const state = {
   session: null, name: null, role: null, email: null,
   from: todayStr(),
-  events: []
+  all: [],            // decrypted diary events (whole sync window)
+  proposals: [],      // decrypted pending proposals (FULL/ADMIN)
+  generatedAt: null, window: null,
+  key: null           // CryptoKey for this role's blob
 };
 
 const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------- crypto
+function keyRole() { return (state.role === 'ADMIN' || state.role === 'FULL') ? 'FULL' : state.role; }
+const te = new TextEncoder(), td = new TextDecoder();
+function b64buf(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function bufB64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s); }
+
+async function deriveKey(pass, role) {
+  const base = await crypto.subtle.importKey('raw', te.encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: te.encode('cgo-diary|v1|' + role), iterations: PBKDF2_ITER, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+}
+
+async function decryptBlob(blob, key) {
+  const parts = String(blob).split('.');
+  if (parts[0] !== 'g1' || parts.length !== 3) throw new Error('bad blob');
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64buf(parts[1]) }, key, b64buf(parts[2]));
+  return JSON.parse(td.decode(plain));
+}
+
+async function encryptObj(obj, key) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, te.encode(JSON.stringify(obj)));
+  return 'g1.' + bufB64(iv) + '.' + bufB64(ct);
+}
+
+async function cachedKey() {
+  if (state.key) return state.key;
+  try {
+    const b64 = localStorage.getItem('cgo_key_' + keyRole());
+    if (!b64) return null;
+    state.key = await crypto.subtle.importKey('raw', b64buf(b64), 'AES-GCM', true, ['encrypt', 'decrypt']);
+    return state.key;
+  } catch (err) { return null; }
+}
+
+async function storeKey(key) {
+  state.key = key;
+  try {
+    const raw = await crypto.subtle.exportKey('raw', key);
+    localStorage.setItem('cgo_key_' + keyRole(), bufB64(raw));
+  } catch (err) { /* cache is a convenience only */ }
+}
+
+function clearKeys() {
+  state.key = null;
+  try {
+    ['FULL', 'DRIVER', 'RECEPTION'].forEach(r => localStorage.removeItem('cgo_key_' + r));
+  } catch (err) { }
+}
 
 // ------------------------------------------------------------------- api
 async function api(action, data) {
@@ -320,7 +451,8 @@ window.addEventListener('load', () => {
       google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', width: 240 });
     }
   }, 100);
-  const saved = localStorage.getItem('cgo_session');
+  let saved = null;
+  try { saved = localStorage.getItem('cgo_session'); } catch (err) { }
   if (saved) {
     Object.assign(state, JSON.parse(saved));
     enterApp();
@@ -332,36 +464,34 @@ async function onCredential(resp) {
   const out = await api('login', { token: resp.credential, session: undefined });
   if (!out.ok) { $('login-error').textContent = out.error || 'Sign-in failed.'; return; }
   state.session = out.session; state.name = out.name; state.role = out.role; state.email = out.email;
-  localStorage.setItem('cgo_session', JSON.stringify({
-    session: out.session, name: out.name, role: out.role, email: out.email
-  }));
+  try {
+    localStorage.setItem('cgo_session', JSON.stringify({
+      session: out.session, name: out.name, role: out.role, email: out.email
+    }));
+  } catch (err) { }
   enterApp();
 }
 
 function clearSession() {
-  localStorage.removeItem('cgo_session');
-  state.session = null; state.role = null;
+  try { localStorage.removeItem('cgo_session'); } catch (err) { }
+  state.session = null; state.role = null; state.key = null;
 }
 
-function showLogin(msg) {
-  $('login-view').hidden = false;
-  $('app-view').hidden = true;
-  $('admin-view').hidden = true;
-  $('whoami').hidden = true;
-  $('btn-signout').hidden = true;
-  $('btn-admin').hidden = true;
-  if (msg) $('login-error').textContent = msg;
+function showView(id, msg) {
+  ['login-view', 'unlock-view', 'app-view', 'admin-view'].forEach(v => $(v).hidden = (v !== id));
+  const inApp = (id === 'app-view' || id === 'admin-view' || id === 'unlock-view');
+  $('whoami').hidden = !inApp;
+  $('btn-signout').hidden = !inApp;
+  $('btn-admin').hidden = !(id === 'app-view' && state.role === 'ADMIN');
+  if (id === 'login-view' && msg) $('login-error').textContent = msg;
 }
+
+function showLogin(msg) { showView('login-view', msg); }
 
 function enterApp() {
-  $('login-view').hidden = true;
-  $('app-view').hidden = false;
-  $('admin-view').hidden = true;
-  $('whoami').hidden = false;
   $('whoami').innerHTML = esc(state.name) + '<br>' + esc(roleLabel(state.role));
-  $('btn-signout').hidden = false;
-  $('btn-admin').hidden = state.role !== 'ADMIN';
   $('btn-propose').hidden = (state.role !== 'ADMIN' && state.role !== 'FULL');
+  showView('app-view');
   loadEvents();
 }
 
@@ -375,38 +505,150 @@ function roleLabel(r) {
 $('btn-signout').onclick = async () => {
   await api('logout');
   clearSession();
+  clearKeys();
   showLogin();
 };
 
-// ----------------------------------------------------------------- agenda
+// ------------------------------------------------- load + decrypt diary
+let pendingBlobOut = null;
+
 async function loadEvents() {
+  showView('app-view');
   $('days').innerHTML = '<div class="spinner">Loading&hellip;</div>';
-  const to = addDays(state.from, WINDOW_DAYS - 1);
-  const out = await api('events', { from: state.from, to: to });
+  const out = await api('events');
   if (!out.ok) { $('days').innerHTML = '<div class="empty">' + esc(out.error || 'Could not load.') + '</div>'; return; }
-  state.events = out.events;
-  $('range-label').textContent = fmtDate(state.from) + ' - ' + fmtDate(to);
+  if (!out.blob || !out.blob.data) {
+    $('days').innerHTML = '<div class="empty">The encrypted diary has no data yet - the next sync will fill it.</div>';
+    return;
+  }
+  pendingBlobOut = out;
+  const key = await cachedKey();
+  if (!key) { showUnlock(); return; }
+  try {
+    await applyBlob(out, key);
+  } catch (err) {
+    // cached key no longer fits (e.g. passphrase rotated) - ask again
+    clearKeys();
+    showUnlock();
+  }
+}
+
+async function applyBlob(out, key) {
+  const payload = await decryptBlob(out.blob.data, key);
+  state.all = payload.events || [];
+  state.generatedAt = payload.generatedAt || out.blob.updatedAt;
+  state.window = { from: payload.from, to: payload.to };
+  state.proposals = [];
+  if (Array.isArray(out.proposals)) {
+    for (const p of out.proposals) {
+      try {
+        const ev = await decryptBlob(p.data, key);
+        state.proposals.push(Object.assign({}, ev, { id: p.id, status: 'PENDING', addedBy: p.createdBy }));
+      } catch (err) { /* skip undecryptable proposal */ }
+    }
+  }
+  showView('app-view');
   renderAgenda();
 }
 
+function showUnlock() {
+  showView('unlock-view');
+  $('unlock-error').textContent = '';
+  $('unlock-pass').value = '';
+  setTimeout(() => $('unlock-pass').focus(), 50);
+}
+
+$('btn-unlock').onclick = doUnlock;
+$('unlock-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doUnlock(); });
+
+async function doUnlock() {
+  const pass = $('unlock-pass').value.trim();
+  if (!pass) return;
+  $('btn-unlock').disabled = true;
+  $('btn-unlock').textContent = 'Unlocking…';
+  $('unlock-error').textContent = '';
+  try {
+    const key = await deriveKey(pass, keyRole());
+    await applyBlob(pendingBlobOut, key);   // throws if the passphrase is wrong
+    await storeKey(key);
+  } catch (err) {
+    $('unlock-error').textContent = "That passphrase didn't unlock the diary. Check with the office.";
+  }
+  $('btn-unlock').disabled = false;
+  $('btn-unlock').textContent = 'Unlock';
+}
+
+// ----------------------------------------------------------------- agenda
+function visibleEvents() {
+  const to = addDays(state.from, WINDOW_DAYS - 1);
+  const merged = state.all.concat(state.proposals);
+  return merged.filter(e => e.date >= state.from && e.date <= to)
+    .sort((a, b) => (a.date + ' ' + a.start).localeCompare(b.date + ' ' + b.start));
+}
+
+function isBand(e) {
+  return e.type !== 'TRAVEL' && /^(\[|BLOCKED\b|Place\s?holder\b)/i.test(e.title || '');
+}
+function isAllDay(e) { return e.start === '00:00' && (e.end === '23:59' || e.end === '00:00'); }
+function minsBetween(a, b) {
+  const p = a.split(':').map(Number), q = b.split(':').map(Number);
+  let d = (q[0] * 60 + q[1]) - (p[0] * 60 + p[1]);
+  if (d < 0) d += 1440;
+  return d;
+}
+function fmtDur(min) {
+  if (!min || min <= 0 || min >= 720) return '';
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? (m ? h + ' h ' + m + ' min' : h + ' h') : m + ' min';
+}
+function travelInfo(e) {
+  const t = e.title || '';
+  let m;
+  if ((m = t.match(/^Travel\s+[Tt]o\s*\(?\s*(.+?)\)?\s*$/))) return { kind: 'depart', dest: m[1] };
+  if ((m = t.match(/^Travel Back to\s+(.+?)(?:\s+from\b.*)?$/i))) return { kind: 'return', dest: m[1] };
+  if ((m = t.match(/^Return from\s+(.+)$/i))) {
+    const parts = String(e.venue || '').split(/\s+to\s+/i);
+    return { kind: 'return', dest: parts.length > 1 ? parts[parts.length - 1] : 'CGI Auckland' };
+  }
+  return { kind: 'travel', dest: e.venue || t };
+}
+function nowHM() { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+
 function renderAgenda() {
+  const events = visibleEvents();
   const byDay = {};
-  state.events.forEach(e => { (byDay[e.date] = byDay[e.date] || []).push(e); });
+  events.forEach(e => { (byDay[e.date] = byDay[e.date] || []).push(e); });
   const frag = document.createDocumentFragment();
   const today = todayStr();
+
+  // NOW / NEXT markers for today
+  const cur = nowHM();
+  let nowId = null, nextId = null;
+  (byDay[today] || []).forEach(e => {
+    if (isBand(e)) return;
+    if (!nowId && e.start <= cur && cur < e.end) nowId = e.id;
+    if (!nextId && e.start > cur) nextId = e.id;
+  });
+
+  const to = addDays(state.from, WINDOW_DAYS - 1);
+  $('range-label').textContent = fmtDate(state.from) + ' - ' + fmtDate(to);
+
   for (let i = 0; i < WINDOW_DAYS; i++) {
     const d = addDays(state.from, i);
     const list = byDay[d];
     if (!list && d !== today) continue; // show empty card only for today
     const day = document.createElement('div');
     day.className = 'day';
+    const nEng = (list || []).filter(e => e.type !== 'TRAVEL' && !isBand(e)).length;
     const h = document.createElement('h3');
-    h.innerHTML = esc(fmtDateLong(d)) + (d === today ? ' <span class="today-tag">&bull; today</span>' : '');
+    h.innerHTML = '<span class="dname">' + esc(fmtDateLong(d)) + '</span>'
+      + (d === today ? ' <span class="today-tag">&bull; today</span>' : '')
+      + (nEng ? '<span class="count">' + nEng + (nEng === 1 ? ' engagement' : ' engagements') + '</span>' : '');
     day.appendChild(h);
     if (!list || !list.length) {
       day.insertAdjacentHTML('beforeend', '<div class="empty">No engagements.</div>');
     } else {
-      list.forEach(e => day.appendChild(card(e)));
+      list.forEach(e => day.appendChild(rowEl(e, e.id === nowId, e.id === nextId)));
     }
     frag.appendChild(day);
   }
@@ -414,28 +656,66 @@ function renderAgenda() {
   $('days').innerHTML = '';
   $('days').appendChild(frag);
   $('days').insertAdjacentHTML('beforeend',
-    '<div class="note-line">Official diary: the Consul General’s calendar. This view is for office coordination.</div>');
+    '<div class="note-line">&#128274; End-to-end encrypted &middot; updated ' + esc(state.generatedAt || '') +
+    '<br>Official diary: the Consul General&#8217;s calendar. This view is for office coordination.</div>');
 }
 
-function card(e) {
+/** One agenda row: office hold band, travel connector, or engagement card. */
+function rowEl(e, isNow, isNext) {
+  if (isBand(e)) {
+    const b = document.createElement('div');
+    b.className = 'band';
+    const t = isAllDay(e) ? 'All day' : esc(e.start) + '&ndash;' + esc(e.end);
+    b.innerHTML = '<span class="tt">' + t + '</span><span>' + esc(e.title)
+      + (e.tbc ? '<span class="badge tbc">TBC</span>' : '') + '</span>';
+    return b;
+  }
+  if (e.type === 'TRAVEL') {
+    const info = travelInfo(e);
+    const r = document.createElement('div');
+    r.className = 'trow';
+    const word = info.kind === 'depart' ? 'depart' : info.kind === 'return' ? 'return' : 'travel';
+    const dur = fmtDur(minsBetween(e.start, e.end));
+    r.innerHTML = '<span class="tt">' + esc(e.start) + '</span>'
+      + '<span>&#128663;</span>'
+      + '<span class="dest">' + esc(word) + ' &rarr; ' + esc(String(info.dest).slice(0, 60)) + '</span>'
+      + (e.tbc ? '<span class="badge tbc">TBC</span>' : '')
+      + (isNow ? '<span class="badge now">NOW</span>' : '')
+      + (dur ? '<span class="dur">' + esc(dur) + ' drive</span>' : '');
+    return r;
+  }
+  return card(e, isNow, isNext);
+}
+
+/** Engagement card (also used by the admin pending list). */
+function card(e, isNow, isNext) {
   const c = document.createElement('div');
-  c.className = 'card' + (e.type === 'TRAVEL' ? ' travel' : '') + (e.status === 'PENDING' ? ' pending' : '');
-  let html = '<div class="time">' + esc(e.start) + ' - ' + esc(e.end);
-  if (e.tbc) html += '<span class="badge tbc">TBC</span>';
-  if (e.status === 'PENDING') html += '<span class="badge pending">PROPOSED</span>';
-  html += '</div>';
-  html += '<div class="title">' + esc(e.title) + '</div>';
+  c.className = 'card' + (e.status === 'PENDING' ? ' pending' : '') + (isNow ? ' now' : '');
+  let badges = '';
+  if (e.tbc) badges += '<span class="badge tbc">TBC</span>';
+  if (e.status === 'PENDING') badges += '<span class="badge pending">PROPOSED</span>';
+  if (isNow) badges += '<span class="badge now">NOW</span>';
+  if (isNext) badges += '<span class="badge next">NEXT</span>';
+  let html = '<div class="timecol">';
+  if (isAllDay(e)) {
+    html += '<div class="allday">All day</div>';
+  } else {
+    html += '<div class="t1">' + esc(e.start) + '</div><div class="t2">' + esc(e.end) + '</div>';
+  }
+  html += '</div><div class="cbody">';
+  html += '<div class="title">' + esc(e.title) + badges + '</div>';
   if (e.venue) {
     html += '<div class="venue">&#128205; <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='
       + encodeURIComponent(e.venue) + '">' + esc(e.venue) + '</a></div>';
   }
   if (e.notes) html += '<div class="notes">' + esc(e.notes) + '</div>';
+  html += '</div>';
   c.innerHTML = html;
   return c;
 }
 
-$('btn-prev').onclick = () => { state.from = addDays(state.from, -WINDOW_DAYS); loadEvents(); };
-$('btn-next').onclick = () => { state.from = addDays(state.from, WINDOW_DAYS); loadEvents(); };
+$('btn-prev').onclick = () => { state.from = addDays(state.from, -WINDOW_DAYS); renderAgenda(); };
+$('btn-next').onclick = () => { state.from = addDays(state.from, WINDOW_DAYS); renderAgenda(); };
 $('btn-today').onclick = () => { state.from = todayStr(); loadEvents(); };
 
 // ---------------------------------------------------------------- propose
@@ -449,12 +729,23 @@ $('form-propose').addEventListener('submit', async (ev) => {
   if (ev.submitter && ev.submitter.value === 'cancel') return;
   ev.preventDefault();
   const f = new FormData(ev.target);
+  const key = await cachedKey();
+  if (!key) { $('propose-error').textContent = 'Unlock the diary first.'; return; }
+  const entry = {
+    title: String(f.get('title') || '').slice(0, 200),
+    date: String(f.get('date') || ''),
+    start: String(f.get('start') || ''),
+    end: String(f.get('end') || ''),
+    venue: String(f.get('venue') || '').slice(0, 300),
+    notes: String(f.get('notes') || '').slice(0, 2000),
+    tbc: true, type: 'ENGAGEMENT'
+  };
+  if (!entry.title || !entry.date || !entry.start || !entry.end) {
+    $('propose-error').textContent = 'Title, date and times are required.'; return;
+  }
   $('btn-propose-save').disabled = true;
-  const out = await api('propose', {
-    title: f.get('title'), date: f.get('date'),
-    start: f.get('start'), end: f.get('end'),
-    venue: f.get('venue'), notes: f.get('notes')
-  });
+  const data = await encryptObj(entry, key);
+  const out = await api('propose', { data: data });
   $('btn-propose-save').disabled = false;
   if (!out.ok) { $('propose-error').textContent = out.error || 'Could not save.'; return; }
   $('dlg-propose').close();
@@ -463,32 +754,33 @@ $('form-propose').addEventListener('submit', async (ev) => {
 });
 
 // ------------------------------------------------------------------ admin
-$('btn-admin').onclick = () => { $('app-view').hidden = true; $('admin-view').hidden = false; loadAdmin(); };
-$('btn-back').onclick = () => { $('admin-view').hidden = true; $('app-view').hidden = false; loadEvents(); };
+$('btn-admin').onclick = () => { showView('admin-view'); loadAdmin(); };
+$('btn-back').onclick = () => { showView('app-view'); loadEvents(); };
 
 async function loadAdmin() {
   $('pending-list').innerHTML = '<div class="spinner">Loading&hellip;</div>';
-  const out = await api('events', { from: todayStr(), to: addDays(todayStr(), 90) });
-  if (out.ok) {
-    const pending = out.events.filter(e => e.status === 'PENDING');
-    $('pending-list').innerHTML = pending.length ? '' : '<div class="empty">Nothing pending.</div>';
-    pending.forEach(e => {
-      const c = card(e);
-      const bar = document.createElement('div');
-      bar.style.marginTop = '8px';
-      bar.innerHTML =
-        '<button class="btn mini" data-o="DIARISED">Diarised in Zoho &#10003;</button> ' +
-        '<button class="btn mini" data-o="REJECTED">Reject</button>' +
-        '<span style="font-size:12px;color:var(--muted)"> &nbsp;by ' + esc(e.addedBy || '') + '</span>';
-      bar.querySelectorAll('button').forEach(b => b.onclick = async () => {
-        const r = await api('resolve', { id: e.id, outcome: b.dataset.o });
-        toast(r.ok ? 'Done.' : (r.error || 'Failed.'));
-        loadAdmin();
-      });
-      c.appendChild(bar);
-      $('pending-list').appendChild(c);
+  const pending = state.proposals || [];
+  $('pending-list').innerHTML = pending.length ? '' : '<div class="empty">Nothing pending.</div>';
+  pending.forEach(e => {
+    const c = card(e);
+    const bar = document.createElement('div');
+    bar.style.marginTop = '8px';
+    bar.innerHTML =
+      '<button class="btn mini" data-o="DIARISED">Diarised in Zoho &#10003;</button> ' +
+      '<button class="btn mini" data-o="REJECTED">Reject</button>' +
+      '<span style="font-size:12px;color:var(--muted)"> &nbsp;by ' + esc(e.addedBy || '') + '</span>';
+    bar.querySelectorAll('button').forEach(b => b.onclick = async () => {
+      const r = await api('resolve', { id: e.id, outcome: b.dataset.o });
+      toast(r.ok ? 'Done.' : (r.error || 'Failed.'));
+      const out = await api('events');
+      if (out.ok && out.blob && state.key) { try { await applyBlob(out, state.key); } catch (err) { } }
+      showView('admin-view');
+      loadAdmin();
     });
-  }
+    (c.querySelector('.cbody') || c).appendChild(bar);
+    $('pending-list').appendChild(c);
+  });
+
   const st = await api('staff_list');
   if (st.ok) {
     let html = '<table><tr><th>Email</th><th>Name</th><th>Role</th><th></th></tr>';
