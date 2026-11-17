@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CGO Diary</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root {
+    --navy: #16295b;
+    --navy-light: #24407f;
+    --ink: #1c2430;
+    --muted: #68738a;
+    --line: #dde2ec;
+    --bg: #f2f4f8;
+    --card: #ffffff;
+    --amber: #b97708;
+    --amber-bg: #fdf3e0;
+    --red: #b3372e;
+    --green: #2e7d4f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+  }
+  header {
+    background: var(--navy);
+    color: #fff;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .3px; flex: 1; }
+  header .who { font-size: 12px; opacity: .85; text-align: right; line-height: 1.3; }
+  header button {
+    background: var(--navy-light);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 14px; }
+
+  /* login */
+  #login-view { text-align: center; padding-top: 10vh; }
+  #login-view .box {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 28px 20px;
+    display: inline-block;
+    min-width: 280px;
+  }
+  #login-view h2 { margin: 0 0 6px; font-size: 18px; color: var(--navy); }
+  #login-view p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+  #gbtn { display: flex; justify-content: center; }
+  #login-error { color: var(--red); font-size: 13px; margin-top: 14px; max-width: 300px; }
+
+  /* toolbar */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .toolbar .range { font-weight: 600; font-size: 14px; flex: 1; text-align: center; color: var(--navy); }
+  .btn {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  /* agenda */
+  .day { margin-bottom: 16px; }
+  .day h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--muted);
+    margin: 0 0 6px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--line);
+  }
+  .day h3 .today-tag { color: var(--green); font-weight: 700; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .card .time { font-weight: 700; font-size: 13px; color: var(--navy); }
+  .card .title { font-size: 15px; margin: 2px 0; }
+  .card .venue { font-size: 13px; color: var(--muted); }
+  .card .venue a { color: var(--navy-light); text-decoration: none; }
+  .card .notes { font-size: 13px; color: var(--ink); margin-top: 6px; white-space: pre-wrap; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .card.travel { border-left: 4px solid var(--red); padding: 6px 12px; }
+  .card.travel .title { font-size: 13px; color: var(--red); margin: 0; }
+  .card.pending { border-left: 4px solid var(--amber); }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 1px 6px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .badge.tbc { background: var(--amber-bg); color: var(--amber); }
+  .badge.pending { background: #fde8e0; color: var(--red); }
+  .empty { color: var(--muted); font-size: 13px; padding: 4px 2px 10px; }
+  .note-line { color: var(--muted); font-size: 12px; margin: 16px 2px; text-align: center; }
+
+  /* dialogs / forms */
+  dialog {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px;
+    width: min(420px, 92vw);
+  }
+  dialog::backdrop { background: rgba(20,28,48,.45); }
+  dialog h3 { margin: 0 0 12px; font-size: 16px; color: var(--navy); }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .row2 { display: flex; gap: 8px; }
+  .row2 .field { flex: 1; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .form-error { color: var(--red); font-size: 13px; margin-top: 8px; }
+
+  /* admin */
+  #admin-view h2 { font-size: 16px; color: var(--navy); margin: 18px 0 8px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 13px; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #e9edf5; font-size: 12px; }
+  .mini { font-size: 12px; padding: 4px 8px; }
+  .inactive { color: var(--muted); text-decoration: line-through; }
+
+  #toast {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: #fff;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity .25s;
+    pointer-events: none;
+    max-width: 90vw;
+  }
+  #toast.show { opacity: 1; }
+  .spinner { text-align: center; color: var(--muted); padding: 30px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="app-title">CGO Diary</h1>
+  <div class="who" id="whoami" hidden></div>
+  <button id="btn-admin" hidden>Admin</button>
+  <button id="btn-signout" hidden>Sign out</button>
+</header>
+
+<main id="login-view">
+  <div class="box">
+    <h2 id="login-title">CGO Diary</h2>
+    <p>Staff sign-in</p>
+    <div id="gbtn"></div>
+    <div id="login-error"></div>
+  </div>
+</main>
+
+<main id="app-view" hidden>
+  <div class="toolbar">
+    <button class="btn" id="btn-prev">&#8592;</button>
+    <button class="btn" id="btn-today">Today</button>
+    <div class="range" id="range-label"></div>
+    <button class="btn" id="btn-next">&#8594;</button>
+    <button class="btn primary" id="btn-propose" hidden>+ Propose</button>
+  </div>
+  <div id="days"></div>
+</main>
+
+<main id="admin-view" hidden>
+  <button class="btn" id="btn-back">&#8592; Back to diary</button>
+
+  <h2>Proposed entries awaiting the diary</h2>
+  <div id="pending-list"></div>
+
+  <h2>Staff</h2>
+  <div id="staff-table"></div>
+  <p><button class="btn primary" id="btn-add-staff">+ Add staff member</button></p>
+
+  <h2>Activity log (last 200)</h2>
+  <div id="log-table"></div>
+</main>
+
+<dialog id="dlg-propose">
+  <h3>Propose an engagement</h3>
+  <p style="font-size:12px;color:var(--muted);margin:0 0 12px">
+    This does not go on the Consul General's diary by itself - the office
+    reviews it and diarises it in the official calendar.
+  </p>
+  <form id="form-propose" method="dialog">
+    <div class="field"><label>Title (who / what)</label><input name="title" required maxlength="200"></div>
+    <div class="field"><label>Date</label><input name="date" type="date" required></div>
+    <div class="row2">
+      <div class="field"><label>Start</label><input name="start" type="time" required></div>
+      <div class="field"><label>End</label><input name="end" type="time" required></div>
+    </div>
+    <div class="field"><label>Venue</label><input name="venue" maxlength="300"></div>
+    <div class="field"><label>Notes (no personal contact details, please)</label><textarea name="notes" rows="3" maxlength="2000"></textarea></div>
+    <div class="form-error" id="propose-error"></div>
+    <div class="dialog-actions">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" id="btn-propose-save" value="default">Submit</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-staff">
+  <h3>Staff member</h3>
+  <form id="form-staff" method="dialog">
+    <div class="field"><label>Google account email</label><input name="email" type="email" required></div>
+    <div class="field"><label>Name</label><input name="name" required maxlength="100"></div>
+    <div class="field"><label>Role</label>
+      <select name="role">
+        <option value="RECEPTION">RECEPTION - Consulate engagements only</option>
+        <option value="DRIVER">DRIVER - time and venue only</option>
+        <option value="FULL">FULL - all details, can propose</option>
+        <option value="ADMIN">ADMIN - full control</option>
+      </select>
+    </div>
+    <div class="field"><label><input type="checkbox" name="active" checked style="width:auto"> Active</label></div>
+    <div class="form-error" id="staff-error"></div>
+    <div class="dialog-actions">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="default">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+// ------------------------------------------------------------- configure
+const API_URL = 'https://script.google.com/macros/s/AKfycbw4BFAy7S9VagbFiGFTDUNf3vDgvCwvHcc0F1eYhoAYK6PbJjalaVCQFfypK00gdwKJ/exec';
+const GOOGLE_CLIENT_ID = '721681778203-jna9nvll5hbd6ltecelb3vo3m6vqntrl.apps.googleusercontent.com';
+const APP_TITLE = 'CGO Diary';
+const WINDOW_DAYS = 14;
+// -----------------------------------------------------------------------
+
+document.getElementById('app-title').textContent = APP_TITLE;
+document.getElementById('login-title').textContent = APP_TITLE;
+
+const state = {
+  session: null, name: null, role: null, email: null,
+  from: todayStr(),
+  events: []
+};
+
+const $ = (id) => document.getElementById(id);
+
+// ------------------------------------------------------------------- api
+async function api(action, data) {
+  const body = JSON.stringify(Object.assign({ action: action, session: state.session }, data || {}));
+  let resp;
+  try {
+    resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: body
+    });
+  } catch (err) {
+    toast('Network error - check your connection.');
+    return { ok: false, error: 'network' };
+  }
+  const out = await resp.json().catch(() => ({ ok: false, error: 'Bad response' }));
+  if (out.error === 'SESSION_EXPIRED') {
+    clearSession();
+    showLogin('Your session expired - please sign in again.');
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- sign-in
+window.addEventListener('load', () => {
+  const t = setInterval(() => {
+    if (window.google && google.accounts) {
+      clearInterval(t);
+      google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onCredential });
+      google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', width: 240 });
+    }
+  }, 100);
+  const saved = localStorage.getItem('cgo_session');
+  if (saved) {
+    Object.assign(state, JSON.parse(saved));
+    enterApp();
+  }
+});
+
+async function onCredential(resp) {
+  $('login-error').textContent = '';
+  const out = await api('login', { token: resp.credential, session: undefined });
+  if (!out.ok) { $('login-error').textContent = out.error || 'Sign-in failed.'; return; }
+  state.session = out.session; state.name = out.name; state.role = out.role; state.email = out.email;
+  localStorage.setItem('cgo_session', JSON.stringify({
+    session: out.session, name: out.name, role: out.role, email: out.email
+  }));
+  enterApp();
+}
+
+function clearSession() {
+  localStorage.removeItem('cgo_session');
+  state.session = null; state.role = null;
+}
+
+function showLogin(msg) {
+  $('login-view').hidden = false;
+  $('app-view').hidden = true;
+  $('admin-view').hidden = true;
+  $('whoami').hidden = true;
+  $('btn-signout').hidden = true;
+  $('btn-admin').hidden = true;
+  if (msg) $('login-error').textContent = msg;
+}
+
+function enterApp() {
+  $('login-view').hidden = true;
+  $('app-view').hidden = false;
+  $('admin-view').hidden = true;
+  $('whoami').hidden = false;
+  $('whoami').innerHTML = esc(state.name) + '<br>' + esc(roleLabel(state.role));
+  $('btn-signout').hidden = false;
+  $('btn-admin').hidden = state.role !== 'ADMIN';
+  $('btn-propose').hidden = (state.role !== 'ADMIN' && state.role !== 'FULL');
+  loadEvents();
+}
+
+function roleLabel(r) {
+  return r === 'ADMIN' ? 'Admin'
+    : r === 'FULL' ? 'Full view'
+    : r === 'DRIVER' ? 'Driver view'
+    : 'Reception - Consulate only';
+}
+
+$('btn-signout').onclick = async () => {
+  await api('logout');
+  clearSession();
+  showLogin();
+};
+
+// ----------------------------------------------------------------- agenda
+async function loadEvents() {
+  $('days').innerHTML = '<div class="spinner">Loading&hellip;</div>';
+  const to = addDays(state.from, WINDOW_DAYS - 1);
+  const out = await api('events', { from: state.from, to: to });
+  if (!out.ok) { $('days').innerHTML = '<div class="empty">' + esc(out.error || 'Could not load.') + '</div>'; return; }
+  state.events = out.events;
+  $('range-label').textContent = fmtDate(state.from) + ' - ' + fmtDate(to);
+  renderAgenda();
+}
+
+function renderAgenda() {
+  const byDay = {};
+  state.events.forEach(e => { (byDay[e.date] = byDay[e.date] || []).push(e); });
+  const frag = document.createDocumentFragment();
+  const today = todayStr();
+  for (let i = 0; i < WINDOW_DAYS; i++) {
+    const d = addDays(state.from, i);
+    const list = byDay[d];
+    if (!list && d !== today) continue; // show empty card only for today
+    const day = document.createElement('div');
+    day.className = 'day';
+    const h = document.createElement('h3');
+    h.innerHTML = esc(fmtDateLong(d)) + (d === today ? ' <span class="today-tag">&bull; today</span>' : '');
+    day.appendChild(h);
+    if (!list || !list.length) {
+      day.insertAdjacentHTML('beforeend', '<div class="empty">No engagements.</div>');
+    } else {
+      list.forEach(e => day.appendChild(card(e)));
+    }
+    frag.appendChild(day);
+  }
+  if (!frag.childNodes.length) frag.appendChild(el('<div class="empty">Nothing in this window.</div>'));
+  $('days').innerHTML = '';
+  $('days').appendChild(frag);
+  $('days').insertAdjacentHTML('beforeend',
+    '<div class="note-line">Official diary: the Consul General’s calendar. This view is for office coordination.</div>');
+}
+
+function card(e) {
+  const c = document.createElement('div');
+  c.className = 'card' + (e.type === 'TRAVEL' ? ' travel' : '') + (e.status === 'PENDING' ? ' pending' : '');
+  let html = '<div class="time">' + esc(e.start) + ' - ' + esc(e.end);
+  if (e.tbc) html += '<span class="badge tbc">TBC</span>';
+  if (e.status === 'PENDING') html += '<span class="badge pending">PROPOSED</span>';
+  html += '</div>';
+  html += '<div class="title">' + esc(e.title) + '</div>';
+  if (e.venue) {
+    html += '<div class="venue">&#128205; <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='
+      + encodeURIComponent(e.venue) + '">' + esc(e.venue) + '</a></div>';
+  }
+  if (e.notes) html += '<div class="notes">' + esc(e.notes) + '</div>';
+  c.innerHTML = html;
+  return c;
+}
+
+$('btn-prev').onclick = () => { state.from = addDays(state.from, -WINDOW_DAYS); loadEvents(); };
+$('btn-next').onclick = () => { state.from = addDays(state.from, WINDOW_DAYS); loadEvents(); };
+$('btn-today').onclick = () => { state.from = todayStr(); loadEvents(); };
+
+// ---------------------------------------------------------------- propose
+$('btn-propose').onclick = () => {
+  $('form-propose').reset();
+  $('propose-error').textContent = '';
+  $('dlg-propose').showModal();
+};
+
+$('form-propose').addEventListener('submit', async (ev) => {
+  if (ev.submitter && ev.submitter.value === 'cancel') return;
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  $('btn-propose-save').disabled = true;
+  const out = await api('propose', {
+    title: f.get('title'), date: f.get('date'),
+    start: f.get('start'), end: f.get('end'),
+    venue: f.get('venue'), notes: f.get('notes')
+  });
+  $('btn-propose-save').disabled = false;
+  if (!out.ok) { $('propose-error').textContent = out.error || 'Could not save.'; return; }
+  $('dlg-propose').close();
+  toast('Proposed - the office will diarise it.');
+  loadEvents();
+});
+
+// ------------------------------------------------------------------ admin
+$('btn-admin').onclick = () => { $('app-view').hidden = true; $('admin-view').hidden = false; loadAdmin(); };
+$('btn-back').onclick = () => { $('admin-view').hidden = true; $('app-view').hidden = false; loadEvents(); };
+
+async function loadAdmin() {
+  $('pending-list').innerHTML = '<div class="spinner">Loading&hellip;</div>';
+  const out = await api('events', { from: todayStr(), to: addDays(todayStr(), 90) });
+  if (out.ok) {
+    const pending = out.events.filter(e => e.status === 'PENDING');
+    $('pending-list').innerHTML = pending.length ? '' : '<div class="empty">Nothing pending.</div>';
+    pending.forEach(e => {
+      const c = card(e);
+      const bar = document.createElement('div');
+      bar.style.marginTop = '8px';
+      bar.innerHTML =
+        '<button class="btn mini" data-o="DIARISED">Diarised in Zoho &#10003;</button> ' +
+        '<button class="btn mini" data-o="REJECTED">Reject</button>' +
+        '<span style="font-size:12px;color:var(--muted)"> &nbsp;by ' + esc(e.addedBy || '') + '</span>';
+      bar.querySelectorAll('button').forEach(b => b.onclick = async () => {
+        const r = await api('resolve', { id: e.id, outcome: b.dataset.o });
+        toast(r.ok ? 'Done.' : (r.error || 'Failed.'));
+        loadAdmin();
+      });
+      c.appendChild(bar);
+      $('pending-list').appendChild(c);
+    });
+  }
+  const st = await api('staff_list');
+  if (st.ok) {
+    let html = '<table><tr><th>Email</th><th>Name</th><th>Role</th><th></th></tr>';
+    st.staff.forEach(s => {
+      html += '<tr class="' + (s.active ? '' : 'inactive') + '"><td>' + esc(s.email) + '</td><td>' + esc(s.name)
+        + '</td><td>' + esc(s.role) + '</td><td><button class="btn mini" data-e="' + esc(s.email)
+        + '">Edit</button></td></tr>';
+    });
+    html += '</table>';
+    $('staff-table').innerHTML = html;
+    $('staff-table').querySelectorAll('button').forEach(b => b.onclick = () => {
+      const s = st.staff.find(x => x.email === b.dataset.e);
+      openStaffDialog(s);
+    });
+  }
+  const lg = await api('log_read');
+  if (lg.ok) {
+    let html = '<table><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr>';
+    lg.log.forEach(r => {
+      html += '<tr><td>' + esc(r.at) + '</td><td>' + esc(r.email) + '</td><td>' + esc(r.action)
+        + '</td><td>' + esc(r.detail) + '</td></tr>';
+    });
+    $('log-table').innerHTML = html + '</table>';
+  }
+}
+
+$('btn-add-staff').onclick = () => openStaffDialog(null);
+
+function openStaffDialog(s) {
+  const f = $('form-staff');
+  f.reset();
+  $('staff-error').textContent = '';
+  if (s) {
+    f.email.value = s.email; f.email.readOnly = true;
+    f.name.value = s.name; f.role.value = s.role; f.active.checked = s.active;
+  } else {
+    f.email.readOnly = false;
+  }
+  $('dlg-staff').showModal();
+}
+
+$('form-staff').addEventListener('submit', async (ev) => {
+  if (ev.submitter && ev.submitter.value === 'cancel') return;
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  const out = await api('staff_save', {
+    email: f.get('email'), name: f.get('name'),
+    role: f.get('role'), active: !!f.get('active')
+  });
+  if (!out.ok) { $('staff-error').textContent = out.error || 'Could not save.'; return; }
+  $('dlg-staff').close();
+  toast('Saved.');
+  loadAdmin();
+});
+
+// ---------------------------------------------------------------- helpers
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+function addDays(dstr, n) {
+  const p = dstr.split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1, p[2] + n);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function fmtDate(dstr) {
+  const p = dstr.split('-').map(Number);
+  return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
+}
+function fmtDateLong(dstr) {
+  const p = dstr.split('-').map(Number);
+  return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'long' });
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+function el(html) { const d = document.createElement('div'); d.innerHTML = html; return d.firstChild; }
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>
