@@ -2,247 +2,415 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#16295b">
 <title>CGO Diary</title>
-<!-- v3: encrypted diary - the server stores ciphertext only -->
+<!-- v4: role-filtered diary, filtered on the server; no client-side encryption -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
-    --navy: #16295b;
-    --navy-light: #24407f;
-    --ink: #1c2430;
-    --muted: #68738a;
-    --line: #dde2ec;
-    --bg: #f2f4f8;
+    color-scheme: light;
+    --header-bg: #16295b;
+    --heading: #16295b;
+    --btn-primary: #16295b;
+    --accent: #a9761f;
+    --ink: #18202c;
+    --ink-2: #364154;
+    --muted: #5b677c;
+    --line: #dfe4ee;
+    --bg: #f3f5f9;
     --card: #ffffff;
-    --amber: #b97708;
-    --amber-bg: #fdf3e0;
-    --red: #b3372e;
-    --red-bg: #fbeeec;
-    --green: #2e7d4f;
+    --shadow: 0 1px 2px rgba(22, 41, 91, .06), 0 3px 10px rgba(22, 41, 91, .04);
+    --travel: #3c5878;
+    --travel-bg: #e7eef6;
+    --hold-bg: #eceff5;
+    --hold-line: #c7cfdd;
+    --hold-ink: #556074;
+    --green: #1f7445;
+    --green-bg: #e1f2e8;
+    --amber: #8d5a04;
+    --amber-bg: #fbefd6;
+    --red: #ad3127;
+    --red-bg: #fbe9e7;
+    --blue: #2254ab;
+    --blue-bg: #e3ebfa;
+    --hero-bg: linear-gradient(135deg, #16295b 0%, #27448a 100%);
+    --hero-ink: #ffffff;
+    --hero-muted: rgba(255, 255, 255, .8);
+    --hero-chip: rgba(255, 255, 255, .15);
+    --hero-shadow: 0 8px 22px rgba(22, 41, 91, .22);
   }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --header-bg: #0c1530;
+      --heading: #b3c8ff;
+      --btn-primary: #2d4c96;
+      --accent: #e2b45c;
+      --ink: #e8ecf4;
+      --ink-2: #c6cddb;
+      --muted: #98a4ba;
+      --line: #29344d;
+      --bg: #0d1321;
+      --card: #161f34;
+      --shadow: none;
+      --travel: #aec3dc;
+      --travel-bg: #1a283d;
+      --hold-bg: #182033;
+      --hold-line: #34405a;
+      --hold-ink: #9ba6bb;
+      --green: #6fd29b;
+      --green-bg: #15382a;
+      --amber: #f0bb5a;
+      --amber-bg: #392b12;
+      --red: #ff8f84;
+      --red-bg: #3c1c1a;
+      --blue: #94b5ff;
+      --blue-bg: #1b2948;
+      --hero-bg: linear-gradient(135deg, #1b2f69 0%, #2a4a92 100%);
+      --hero-shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --header-bg: #0c1530;
+    --heading: #b3c8ff;
+    --btn-primary: #2d4c96;
+    --accent: #e2b45c;
+    --ink: #e8ecf4;
+    --ink-2: #c6cddb;
+    --muted: #98a4ba;
+    --line: #29344d;
+    --bg: #0d1321;
+    --card: #161f34;
+    --shadow: none;
+    --travel: #aec3dc;
+    --travel-bg: #1a283d;
+    --hold-bg: #182033;
+    --hold-line: #34405a;
+    --hold-ink: #9ba6bb;
+    --green: #6fd29b;
+    --green-bg: #15382a;
+    --amber: #f0bb5a;
+    --amber-bg: #392b12;
+    --red: #ff8f84;
+    --red-bg: #3c1c1a;
+    --blue: #94b5ff;
+    --blue-bg: #1b2948;
+    --hero-bg: linear-gradient(135deg, #1b2f69 0%, #2a4a92 100%);
+    --hero-shadow: none;
+  }
+
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
     background: var(--bg);
     color: var(--ink);
-    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
   }
+  [hidden] { display: none !important; }
+  a { color: inherit; }
+
   header {
-    background: var(--navy);
-    color: #fff;
-    padding: 10px 14px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
     position: sticky;
     top: 0;
     z-index: 5;
-  }
-  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .3px; flex: 1; }
-  header .who { font-size: 12px; opacity: .85; text-align: right; line-height: 1.3; }
-  header button {
-    background: var(--navy-light);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    background: var(--header-bg);
     color: #fff;
-    border: 1px solid rgba(255,255,255,.25);
-    border-radius: 6px;
-    padding: 5px 10px;
-    font-size: 12px;
+  }
+  header h1 { flex: 1; margin: 0; font-size: 17px; font-weight: 650; letter-spacing: .2px; }
+  header .who { font-size: 13px; line-height: 1.3; text-align: right; opacity: .88; }
+  header button {
+    min-height: 34px;
+    padding: 5px 11px;
+    border: 1px solid rgba(255, 255, 255, .28);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .1);
+    color: #fff;
+    font-size: 13px;
     cursor: pointer;
   }
-  main { max-width: 680px; margin: 0 auto; padding: 14px; }
+  main { max-width: 720px; margin: 0 auto; padding: 14px 16px 48px; }
 
-  /* login + unlock */
-  #login-view, #unlock-view { text-align: center; padding-top: 10vh; }
+  /* sign-in */
+  #login-view { padding-top: 12vh; text-align: center; }
   .authbox {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 28px 20px;
     display: inline-block;
     min-width: 280px;
     max-width: 340px;
-  }
-  .authbox h2 { margin: 0 0 6px; font-size: 18px; color: var(--navy); }
-  .authbox p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
-  #gbtn { display: flex; justify-content: center; }
-  .auth-error { color: var(--red); font-size: 13px; margin-top: 14px; max-width: 300px; }
-  #unlock-pass {
-    width: 100%;
-    padding: 10px;
+    padding: 28px 22px;
     border: 1px solid var(--line);
-    border-radius: 6px;
-    font-size: 15px;
-    text-align: center;
-    letter-spacing: .5px;
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow: var(--shadow);
   }
-  #btn-unlock {
-    margin-top: 12px;
-    width: 100%;
-    background: var(--navy);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 10px;
+  .authbox h2 { margin: 0 0 6px; font-size: 19px; color: var(--heading); }
+  .authbox p { margin: 0 0 18px; font-size: 14px; color: var(--muted); }
+  #gbtn { display: flex; justify-content: center; }
+  .auth-error { max-width: 300px; margin-top: 14px; font-size: 14px; color: var(--red); }
+
+  /* freshness */
+  .fresh {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 12px;
+    padding: 7px 4px;
     font-size: 14px;
+    color: var(--muted);
+  }
+  .fresh .dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--green); }
+  .fresh.stale, .fresh.old { padding: 9px 12px; border-radius: 12px; font-weight: 600; }
+  .fresh.stale { background: var(--amber-bg); color: var(--amber); }
+  .fresh.stale .dot { background: var(--amber); }
+  .fresh.old { background: var(--red-bg); color: var(--red); }
+  .fresh.old .dot { background: var(--red); }
+  .fresh .refresh {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--ink-2);
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
   }
-  #btn-unlock:disabled { opacity: .6; }
-  .lockline { font-size: 11.5px; color: var(--muted); margin-top: 14px; }
+
+  /* next-up panel */
+  .hero {
+    margin: 0 0 18px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: var(--hero-bg);
+    color: var(--hero-ink);
+    box-shadow: var(--hero-shadow);
+  }
+  .hero .lbl {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--hero-muted);
+  }
+  .hero .pill {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--hero-chip);
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .hero .hmain { display: flex; gap: 14px; align-items: baseline; margin-top: 8px; }
+  .hero .htime { font-size: 26px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
+  .hero .htitle { font-size: 18px; font-weight: 650; line-height: 1.3; }
+  .hero .hvenue { margin-top: 3px; font-size: 14.5px; color: var(--hero-muted); }
+  .hero .leave {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: var(--hero-chip);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .hero .leave .in { margin-left: auto; white-space: nowrap; font-weight: 500; color: var(--hero-muted); }
+  .hero .hnow {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, .18);
+  }
+  .hero .hnow .htitle { font-size: 16px; }
+  .hero .quiet { margin-top: 6px; font-size: 16px; font-weight: 600; }
+  .hero .later { margin-top: 6px; font-size: 14.5px; color: var(--hero-muted); }
 
   /* toolbar */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-  }
-  .toolbar .range { font-weight: 600; font-size: 14px; flex: 1; text-align: center; color: var(--navy); }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .toolbar .range { flex: 1; text-align: center; font-size: 15px; font-weight: 650; color: var(--heading); }
   .btn {
-    background: var(--card);
+    min-height: 38px;
+    padding: 7px 13px;
     border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 7px 12px;
-    font-size: 13px;
-    cursor: pointer;
+    border-radius: 10px;
+    background: var(--card);
     color: var(--ink);
+    font-size: 14px;
+    cursor: pointer;
   }
-  .btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .btn.primary { border-color: transparent; background: var(--btn-primary); color: #fff; }
   .btn:disabled { opacity: .5; cursor: default; }
+  .btn.mini { min-height: 32px; padding: 4px 10px; font-size: 13px; }
 
   /* agenda */
-  .day { margin-bottom: 22px; }
-  .day h3 {
+  .day { margin-bottom: 26px; }
+  .dayhead {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 8px;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: .6px;
-    color: var(--muted);
-    margin: 0 0 8px;
-    padding-bottom: 5px;
-    border-bottom: 2px solid var(--line);
+    gap: 4px 10px;
+    margin: 0 2px 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
   }
-  .day h3 .dname { font-size: 16px; color: var(--navy); letter-spacing: .2px; }
-  .day h3 .today-tag { color: var(--green); font-weight: 700; }
-  .day h3 .count { margin-left: auto; font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 12px; }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-    display: flex;
-    gap: 12px;
-    box-shadow: 0 1px 2px rgba(22, 41, 91, .05);
-  }
-  .card.now { border-left: 4px solid var(--green); }
-  .card.pending { border-left: 4px solid var(--amber); }
-  .timecol { min-width: 52px; text-align: right; flex-shrink: 0; padding-top: 1px; }
-  .timecol .t1 { font-weight: 700; font-size: 14px; color: var(--navy); }
-  .timecol .t2 { font-size: 12px; color: var(--muted); margin-top: 1px; }
-  .timecol .allday { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding-top: 3px; }
-  .cbody { flex: 1; min-width: 0; }
-  .cbody .title { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.35; }
-  .cbody .venue { font-size: 13px; color: var(--muted); margin-top: 3px; }
-  .cbody .venue a { color: var(--navy-light); text-decoration: none; }
-  .cbody .notes { font-size: 13px; color: var(--ink); margin-top: 6px; white-space: pre-wrap; border-top: 1px dashed var(--line); padding-top: 6px; }
-  .trow {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: -2px 0 8px;
-    padding: 5px 12px 5px 8px;
-    border-radius: 8px;
-    background: var(--red-bg);
-    color: var(--red);
-    font-size: 13px;
-  }
-  .trow .tt { font-weight: 700; min-width: 44px; text-align: right; flex-shrink: 0; }
-  .trow .dest { min-width: 0; }
-  .trow .dur { color: #a06a62; margin-left: auto; white-space: nowrap; font-size: 12px; }
-  .band {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    background: #e8ebf2;
-    border: 1px dashed #c4ccdc;
-    border-radius: 8px;
-    color: #5a6577;
-    font-size: 12.5px;
-    padding: 6px 12px;
-    margin-bottom: 8px;
-  }
-  .band .tt { font-weight: 700; min-width: 52px; text-align: right; flex-shrink: 0; }
-  .badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    border-radius: 4px;
-    padding: 1px 6px;
-    vertical-align: 1px;
-    margin-left: 6px;
-  }
-  .badge.tbc { background: var(--amber-bg); color: var(--amber); }
-  .badge.pending { background: #fde8e0; color: var(--red); }
-  .badge.now { background: #e2f2e8; color: var(--green); }
-  .badge.next { background: #e3ebfb; color: #2456b0; }
-  .empty { color: var(--muted); font-size: 13px; padding: 4px 2px 10px; }
-  .note-line { color: var(--muted); font-size: 12px; margin: 16px 2px; text-align: center; }
+  .dayhead .dname { font-size: 18px; font-weight: 700; color: var(--heading); }
+  .dayhead .today-tag { font-size: 12.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--accent); }
+  .dayhead .meta { margin-left: auto; font-size: 14px; color: var(--muted); }
+  .dayhead .clashn { color: var(--red); font-weight: 650; }
 
-  /* dialogs / forms */
-  dialog {
+  .card {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 8px;
+    padding: 12px 14px;
     border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 18px;
-    width: min(420px, 92vw);
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow: var(--shadow);
   }
-  dialog::backdrop { background: rgba(20,28,48,.45); }
-  dialog h3 { margin: 0 0 12px; font-size: 16px; color: var(--navy); }
+  .card.now { border-left: 4px solid var(--green); padding-left: 11px; }
+  .card.proposed { border-left: 4px solid var(--amber); padding-left: 11px; border-style: dashed dashed dashed solid; }
+  .card.diarised { border-left: 4px solid var(--blue); padding-left: 11px; }
+  .card.clash { border-left: 4px solid var(--red); padding-left: 11px; }
+  .past { opacity: .55; }
+  .tcol { width: 54px; flex-shrink: 0; padding-top: 1px; text-align: right; font-variant-numeric: tabular-nums; }
+  .tcol .t1 { font-size: 16px; font-weight: 700; color: var(--heading); }
+  .tcol .t2 { margin-top: 2px; font-size: 14px; color: var(--muted); }
+  .tcol .allday { padding-top: 3px; font-size: 12.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
+  .cbody { flex: 1; min-width: 0; }
+  .ctitle { font-size: 16px; font-weight: 650; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+  .chips { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-left: 6px; vertical-align: 2px; }
+  .chip { padding: 1px 7px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: .2px; line-height: 1.5; }
+  .chip.now { background: var(--green-bg); color: var(--green); }
+  .chip.next { background: var(--blue-bg); color: var(--blue); }
+  .chip.tbc, .chip.proposed, .chip.timing { background: var(--amber-bg); color: var(--amber); }
+  .chip.clash { background: var(--red-bg); color: var(--red); }
+  .chip.diarised { background: var(--blue-bg); color: var(--blue); }
+  .cvenue { margin-top: 4px; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+  .cvenue a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .brief {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    overflow-wrap: anywhere;
+  }
+  .brief b { font-weight: 650; color: var(--ink); }
+  .cline { margin-top: 5px; font-size: 14px; color: var(--ink-2); }
+  .cwarn { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--red); }
+  .byline { margin-top: 6px; font-size: 13px; color: var(--muted); }
+
+  .trow { display: flex; align-items: center; gap: 14px; margin: 0 0 8px; color: var(--travel); font-size: 14.5px; }
+  .trow .tt { width: 69px; flex-shrink: 0; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .trow .leg {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    min-width: 0;
+    padding: 7px 12px;
+    border-radius: 10px;
+    background: var(--travel-bg);
+  }
+  .trow .route { flex: 1 1 120px; min-width: 0; overflow-wrap: anywhere; }
+  .trow .dur { margin-left: auto; white-space: nowrap; font-size: 13.5px; opacity: .9; }
+  .trow a { text-decoration: underline; text-underline-offset: 3px; }
+  .trow.driver { font-size: 15.5px; }
+  .trow.driver .leg { padding: 10px 12px; }
+
+  .band { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; font-size: 14px; color: var(--hold-ink); }
+  .band .tt { width: 69px; flex-shrink: 0; text-align: right; font-size: 14px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
+  .band .tt small { display: block; font-size: 13px; font-weight: 400; }
+  .band .bx { flex: 1; min-width: 0; padding: 7px 12px; border: 1px dashed var(--hold-line); border-radius: 10px; background: var(--hold-bg); overflow-wrap: anywhere; }
+
+  .empty { padding: 4px 2px 10px; font-size: 14px; color: var(--muted); }
+  .note-line { margin: 18px 2px; text-align: center; font-size: 13px; line-height: 1.6; color: var(--muted); }
+  .spinner { padding: 30px 0; text-align: center; font-size: 14px; color: var(--muted); }
+
+  /* dialogs and forms */
+  dialog {
+    width: min(440px, 92vw);
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--card);
+    color: var(--ink);
+  }
+  dialog::backdrop { background: rgba(12, 18, 34, .5); }
+  dialog h3 { margin: 0 0 12px; font-size: 17px; color: var(--heading); }
   .field { margin-bottom: 10px; }
-  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  .field label { display: block; margin-bottom: 3px; font-size: 13px; color: var(--muted); }
   .field input, .field select, .field textarea {
     width: 100%;
-    padding: 8px;
+    padding: 8px 9px;
     border: 1px solid var(--line);
-    border-radius: 6px;
-    font-size: 14px;
-    font-family: inherit;
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
   }
   .row2 { display: flex; gap: 8px; }
   .row2 .field { flex: 1; }
   .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-  .form-error { color: var(--red); font-size: 13px; margin-top: 8px; }
+  .form-error { margin-top: 8px; font-size: 14px; color: var(--red); }
+  .hint { margin: 0 0 12px; font-size: 13.5px; color: var(--muted); }
 
   /* admin */
-  #admin-view h2 { font-size: 16px; color: var(--navy); margin: 18px 0 8px; }
-  table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 13px; }
-  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
-  th { background: #e9edf5; font-size: 12px; }
-  .mini { font-size: 12px; padding: 4px 8px; }
+  #admin-view h2 { margin: 22px 0 8px; font-size: 17px; color: var(--heading); }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 14px; }
+  th, td { padding: 6px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: var(--hold-bg); font-size: 13px; }
   .inactive { color: var(--muted); text-decoration: line-through; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+  .keybox {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
 
   #toast {
     position: fixed;
-    bottom: 18px;
+    bottom: max(18px, env(safe-area-inset-bottom));
     left: 50%;
-    transform: translateX(-50%);
-    background: var(--ink);
-    color: #fff;
-    padding: 9px 16px;
-    border-radius: 8px;
-    font-size: 13px;
-    opacity: 0;
-    transition: opacity .25s;
-    pointer-events: none;
     max-width: 90vw;
+    padding: 9px 16px;
+    border-radius: 10px;
+    background: #1c2433;
+    color: #fff;
+    font-size: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%);
+    transition: opacity .25s;
   }
   #toast.show { opacity: 1; }
-  .spinner { text-align: center; color: var(--muted); padding: 30px 0; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -263,23 +431,14 @@
   </div>
 </main>
 
-<main id="unlock-view" hidden>
-  <div class="authbox">
-    <h2>&#128274; Unlock the diary</h2>
-    <p>Enter the diary passphrase the office gave you for your role.</p>
-    <input id="unlock-pass" type="password" autocomplete="off" spellcheck="false" placeholder="passphrase">
-    <button id="btn-unlock">Unlock</button>
-    <div class="auth-error" id="unlock-error"></div>
-    <div class="lockline">The diary is end-to-end encrypted. It is unlocked on this device only; the passphrase is never sent anywhere.</div>
-  </div>
-</main>
-
 <main id="app-view" hidden>
+  <div id="fresh"></div>
+  <div id="hero"></div>
   <div class="toolbar">
-    <button class="btn" id="btn-prev">&#8592;</button>
+    <button class="btn" id="btn-prev" aria-label="Previous two weeks">&#8592;</button>
     <button class="btn" id="btn-today">Today</button>
     <div class="range" id="range-label"></div>
-    <button class="btn" id="btn-next">&#8594;</button>
+    <button class="btn" id="btn-next" aria-label="Next two weeks">&#8594;</button>
     <button class="btn primary" id="btn-propose" hidden>+ Propose</button>
   </div>
   <div id="days"></div>
@@ -288,23 +447,30 @@
 <main id="admin-view" hidden>
   <button class="btn" id="btn-back">&#8592; Back to diary</button>
 
-  <h2>Proposed entries awaiting the diary</h2>
+  <h2>Proposed entries</h2>
   <div id="pending-list"></div>
 
   <h2>Staff</h2>
-  <div id="staff-table"></div>
+  <p class="hint">While the sign-in app is in Google's testing mode, a new person must also be added to the test users list in Google Cloud Console.</p>
+  <div class="tablewrap" id="staff-table"></div>
   <p><button class="btn primary" id="btn-add-staff">+ Add staff member</button></p>
 
+  <h2>Zoho sync</h2>
+  <p class="hint">The weekday sync task sends the diary here using this key. Keep it out of chats and documents you share.</p>
+  <div class="actions">
+    <button class="btn mini" id="btn-key-show">Show sync key</button>
+    <button class="btn mini" id="btn-key-copy" hidden>Copy</button>
+    <button class="btn mini" id="btn-key-new">Make a new key</button>
+  </div>
+  <div class="keybox" id="key-box" hidden></div>
+
   <h2>Activity log (last 200)</h2>
-  <div id="log-table"></div>
+  <div class="tablewrap" id="log-table"></div>
 </main>
 
 <dialog id="dlg-propose">
   <h3>Propose an engagement</h3>
-  <p style="font-size:12px;color:var(--muted);margin:0 0 12px">
-    This does not go on the Consul General's diary by itself - the office
-    reviews it and diarises it in the official calendar.
-  </p>
+  <p class="hint">This does not go on the Consul General's diary by itself. The office reviews it and diarises it in the official calendar.</p>
   <form id="form-propose" method="dialog">
     <div class="field"><label>Title (who / what)</label><input name="title" required maxlength="200"></div>
     <div class="field"><label>Date</label><input name="date" type="date" required></div>
@@ -330,7 +496,7 @@
     <div class="field"><label>Role</label>
       <select name="role">
         <option value="RECEPTION">RECEPTION - Consulate engagements only</option>
-        <option value="DRIVER">DRIVER - time and venue only</option>
+        <option value="DRIVER">DRIVER - drives, times and venues only</option>
         <option value="FULL">FULL - all details, can propose</option>
         <option value="ADMIN">ADMIN - full control</option>
       </select>
@@ -352,73 +518,23 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbw4BFAy7S9VagbFiGFTDUNf
 const GOOGLE_CLIENT_ID = '721681778203-jna9nvll5hbd6ltecelb3vo3m6vqntrl.apps.googleusercontent.com';
 const APP_TITLE = 'CGO Diary';
 const WINDOW_DAYS = 14;
-const PBKDF2_ITER = 310000;
+const SYNC_AT = [7, 43];          // weekday morning sync from Zoho
+const SYNC_GRACE_MIN = 40;        // how long after SYNC_AT the sync should have landed
+const REFETCH_MS = 10 * 60 * 1000; // re-read the diary when older than this
+const CONSULATE_LABEL = 'CGI Auckland';
 // -----------------------------------------------------------------------
 
-document.getElementById('app-title').textContent = APP_TITLE;
-document.getElementById('login-title').textContent = APP_TITLE;
+const $ = (id) => document.getElementById(id);
+$('app-title').textContent = APP_TITLE;
+$('login-title').textContent = APP_TITLE;
 
 const state = {
   session: null, name: null, role: null, email: null,
-  from: todayStr(),
-  all: [],            // decrypted diary events (whole sync window)
-  proposals: [],      // decrypted pending proposals (FULL/ADMIN)
-  generatedAt: null, window: null,
-  key: null           // CryptoKey for this role's blob
+  from: todayStr(), followToday: true,
+  events: [], proposals: [],
+  syncedAt: null, syncFrom: null, syncTo: null,
+  loadedAt: 0, loading: false
 };
-
-const $ = (id) => document.getElementById(id);
-
-// ---------------------------------------------------------------- crypto
-function keyRole() { return (state.role === 'ADMIN' || state.role === 'FULL') ? 'FULL' : state.role; }
-const te = new TextEncoder(), td = new TextDecoder();
-function b64buf(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
-function bufB64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s); }
-
-async function deriveKey(pass, role) {
-  const base = await crypto.subtle.importKey('raw', te.encode(pass), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: te.encode('cgo-diary|v1|' + role), iterations: PBKDF2_ITER, hash: 'SHA-256' },
-    base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-}
-
-async function decryptBlob(blob, key) {
-  const parts = String(blob).split('.');
-  if (parts[0] !== 'g1' || parts.length !== 3) throw new Error('bad blob');
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64buf(parts[1]) }, key, b64buf(parts[2]));
-  return JSON.parse(td.decode(plain));
-}
-
-async function encryptObj(obj, key) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, te.encode(JSON.stringify(obj)));
-  return 'g1.' + bufB64(iv) + '.' + bufB64(ct);
-}
-
-async function cachedKey() {
-  if (state.key) return state.key;
-  try {
-    const b64 = localStorage.getItem('cgo_key_' + keyRole());
-    if (!b64) return null;
-    state.key = await crypto.subtle.importKey('raw', b64buf(b64), 'AES-GCM', true, ['encrypt', 'decrypt']);
-    return state.key;
-  } catch (err) { return null; }
-}
-
-async function storeKey(key) {
-  state.key = key;
-  try {
-    const raw = await crypto.subtle.exportKey('raw', key);
-    localStorage.setItem('cgo_key_' + keyRole(), bufB64(raw));
-  } catch (err) { /* cache is a convenience only */ }
-}
-
-function clearKeys() {
-  state.key = null;
-  try {
-    ['FULL', 'DRIVER', 'RECEPTION'].forEach(r => localStorage.removeItem('cgo_key_' + r));
-  } catch (err) { }
-}
 
 // ------------------------------------------------------------------- api
 async function api(action, data) {
@@ -431,10 +547,9 @@ async function api(action, data) {
       body: body
     });
   } catch (err) {
-    toast('Network error - check your connection.');
     return { ok: false, error: 'network' };
   }
-  const out = await resp.json().catch(() => ({ ok: false, error: 'Bad response' }));
+  const out = await resp.json().catch(() => ({ ok: false, error: 'Bad response from the server.' }));
   if (out.error === 'SESSION_EXPIRED') {
     clearSession();
     showLogin('Your session expired - please sign in again.');
@@ -442,27 +557,32 @@ async function api(action, data) {
   return out;
 }
 
-// ---------------------------------------------------------------- sign-in
+// --------------------------------------------------------------- sign-in
 window.addEventListener('load', () => {
   const t = setInterval(() => {
-    if (window.google && google.accounts) {
+    if (window.google && google.accounts && google.accounts.id) {
       clearInterval(t);
       google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onCredential });
       google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', width: 240 });
     }
   }, 100);
   let saved = null;
-  try { saved = localStorage.getItem('cgo_session'); } catch (err) { }
-  if (saved) {
-    Object.assign(state, JSON.parse(saved));
+  try { saved = JSON.parse(localStorage.getItem('cgo_session') || 'null'); } catch (err) { saved = null; }
+  if (saved && saved.session) {
+    Object.assign(state, saved);
     enterApp();
   }
+  // Old encrypted version left a key in this browser - remove it.
+  try { ['FULL', 'DRIVER', 'RECEPTION'].forEach(r => localStorage.removeItem('cgo_key_' + r)); } catch (err) { }
 });
 
 async function onCredential(resp) {
   $('login-error').textContent = '';
   const out = await api('login', { token: resp.credential, session: undefined });
-  if (!out.ok) { $('login-error').textContent = out.error || 'Sign-in failed.'; return; }
+  if (!out.ok) {
+    $('login-error').textContent = out.error === 'network' ? 'Network error - check your connection.' : (out.error || 'Sign-in failed.');
+    return;
+  }
   state.session = out.session; state.name = out.name; state.role = out.role; state.email = out.email;
   try {
     localStorage.setItem('cgo_session', JSON.stringify({
@@ -474,12 +594,13 @@ async function onCredential(resp) {
 
 function clearSession() {
   try { localStorage.removeItem('cgo_session'); } catch (err) { }
-  state.session = null; state.role = null; state.key = null;
+  state.session = null; state.role = null;
+  state.events = []; state.proposals = []; state.loadedAt = 0;
 }
 
 function showView(id, msg) {
-  ['login-view', 'unlock-view', 'app-view', 'admin-view'].forEach(v => $(v).hidden = (v !== id));
-  const inApp = (id === 'app-view' || id === 'admin-view' || id === 'unlock-view');
+  ['login-view', 'app-view', 'admin-view'].forEach(v => $(v).hidden = (v !== id));
+  const inApp = (id !== 'login-view');
   $('whoami').hidden = !inApp;
   $('btn-signout').hidden = !inApp;
   $('btn-admin').hidden = !(id === 'app-view' && state.role === 'ADMIN');
@@ -490,9 +611,9 @@ function showLogin(msg) { showView('login-view', msg); }
 
 function enterApp() {
   $('whoami').innerHTML = esc(state.name) + '<br>' + esc(roleLabel(state.role));
-  $('btn-propose').hidden = (state.role !== 'ADMIN' && state.role !== 'FULL');
+  $('btn-propose').hidden = !canPropose();
   showView('app-view');
-  loadEvents();
+  loadEvents(false);
 }
 
 function roleLabel(r) {
@@ -501,226 +622,415 @@ function roleLabel(r) {
     : r === 'DRIVER' ? 'Driver view'
     : 'Reception - Consulate only';
 }
+function canPropose() { return state.role === 'ADMIN' || state.role === 'FULL'; }
+function isDriver() { return state.role === 'DRIVER'; }
+function isReception() { return state.role === 'RECEPTION'; }
 
 $('btn-signout').onclick = async () => {
   await api('logout');
   clearSession();
-  clearKeys();
   showLogin();
 };
 
-// ------------------------------------------------- load + decrypt diary
-let pendingBlobOut = null;
-
-async function loadEvents() {
-  showView('app-view');
-  $('days').innerHTML = '<div class="spinner">Loading&hellip;</div>';
+// ------------------------------------------------------------ load diary
+async function loadEvents(quiet) {
+  if (state.loading) return;
+  state.loading = true;
+  if (!quiet) $('days').innerHTML = '<div class="spinner">Loading&hellip;</div>';
   const out = await api('events');
-  if (!out.ok) { $('days').innerHTML = '<div class="empty">' + esc(out.error || 'Could not load.') + '</div>'; return; }
-  if (!out.blob || !out.blob.data) {
-    $('days').innerHTML = '<div class="empty">The encrypted diary has no data yet - the next sync will fill it.</div>';
+  state.loading = false;
+  if (!out.ok) {
+    if (out.error === 'SESSION_EXPIRED') return;
+    if (quiet && state.loadedAt) { toast('Could not refresh - showing the last copy.'); renderAgenda(); return; }
+    $('days').innerHTML = '<div class="empty">' + esc(out.error === 'network' ? 'Network error - check your connection.' : (out.error || 'Could not load.')) + '</div>';
     return;
   }
-  pendingBlobOut = out;
-  const key = await cachedKey();
-  if (!key) { showUnlock(); return; }
-  try {
-    await applyBlob(out, key);
-  } catch (err) {
-    // cached key no longer fits (e.g. passphrase rotated) - ask again
-    clearKeys();
-    showUnlock();
+  if (out.role && out.role !== state.role) {
+    state.role = out.role;
+    $('whoami').innerHTML = esc(state.name) + '<br>' + esc(roleLabel(state.role));
+    $('btn-propose').hidden = !canPropose();
   }
-}
-
-async function applyBlob(out, key) {
-  const payload = await decryptBlob(out.blob.data, key);
-  state.all = payload.events || [];
-  state.generatedAt = payload.generatedAt || out.blob.updatedAt;
-  state.window = { from: payload.from, to: payload.to };
-  state.proposals = [];
-  if (Array.isArray(out.proposals)) {
-    for (const p of out.proposals) {
-      try {
-        const ev = await decryptBlob(p.data, key);
-        state.proposals.push(Object.assign({}, ev, { id: p.id, status: 'PENDING', addedBy: p.createdBy }));
-      } catch (err) { /* skip undecryptable proposal */ }
-    }
-  }
+  state.events = Array.isArray(out.events) ? out.events : [];
+  state.proposals = Array.isArray(out.proposals) ? out.proposals : [];
+  state.syncedAt = out.syncedAt || null;
+  state.syncFrom = out.from || null;
+  state.syncTo = out.to || null;
+  state.loadedAt = Date.now();
+  if (!$('admin-view').hidden) return;
   showView('app-view');
   renderAgenda();
 }
 
-function showUnlock() {
-  showView('unlock-view');
-  $('unlock-error').textContent = '';
-  $('unlock-pass').value = '';
-  setTimeout(() => $('unlock-pass').focus(), 50);
+// Keep the view current while it stays open: markers every minute, data every 10 minutes.
+function tick() {
+  if (!state.session || $('app-view').hidden) return;
+  if (state.followToday) state.from = todayStr();
+  if (Date.now() - state.loadedAt > REFETCH_MS) loadEvents(true);
+  else renderAgenda();
+}
+setInterval(() => { if (!document.hidden) tick(); }, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+
+// ---------------------------------------------------------- classifying
+function toMin(hm) { const p = String(hm || '0:0').split(':').map(Number); return (p[0] || 0) * 60 + (p[1] || 0); }
+function nowMin() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+function isTravel(e) { return e.type === 'TRAVEL'; }
+function isHold(e) { return !isTravel(e) && (e.type === 'HOLD' || /^(\[|BLOCKED\b|Place\s?holder\b)/i.test(e.title || '')); }
+function isAllDay(e) { return !!e.allDay || (e.start === '00:00' && (e.end === '23:59' || e.end === '00:00' || e.end === '24:00')); }
+function isEng(e) { return !isTravel(e) && !isHold(e); }
+function isTimedEng(e) { return isEng(e) && !isAllDay(e); }
+function isConfirmed(e) { return e.status !== 'PROPOSED'; }
+function endMin(e) {
+  const s = toMin(e.start);
+  let en = toMin(e.end);
+  if (en <= s) en += 1440;
+  return en;
 }
 
-$('btn-unlock').onclick = doUnlock;
-$('unlock-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doUnlock(); });
-
-async function doUnlock() {
-  const pass = $('unlock-pass').value.trim();
-  if (!pass) return;
-  $('btn-unlock').disabled = true;
-  $('btn-unlock').textContent = 'Unlocking…';
-  $('unlock-error').textContent = '';
-  try {
-    const key = await deriveKey(pass, keyRole());
-    await applyBlob(pendingBlobOut, key);   // throws if the passphrase is wrong
-    await storeKey(key);
-  } catch (err) {
-    $('unlock-error').textContent = "That passphrase didn't unlock the diary. Check with the office.";
+/** Reads "Travel to X", "Travel Back to Y from X", "Return from X" (venue "X to Y"). */
+function travelInfo(e) {
+  const t = String(e.title || '').trim();
+  const v = String(e.venue || '').trim();
+  let m;
+  if ((m = t.match(/^Travel\s+back\s+to\s+(.+?)(?:\s+from\s+(.+))?$/i))) return { kind: 'return', dest: clean(m[1]), origin: m[2] ? clean(m[2]) : null };
+  if ((m = t.match(/^Travel\s+to\s*(.+)$/i))) return { kind: 'depart', dest: clean(m[1]) || v || null, origin: null };
+  if ((m = t.match(/^Return\s+from\s+(.+)$/i))) {
+    const parts = v.split(/\s+to\s+/i);
+    return { kind: 'return', origin: clean(m[1]), dest: parts.length > 1 ? clean(parts[parts.length - 1]) : null };
   }
-  $('btn-unlock').disabled = false;
-  $('btn-unlock').textContent = 'Unlock';
+  return { kind: 'travel', dest: v || null, origin: null };
+}
+function clean(s) { return String(s || '').replace(/^[\s(]+|[\s)]+$/g, '').trim(); }
+function shortPlace(v) {
+  let s = String(v || '').split(',')[0].trim();
+  if (/consulate general of india|^cgi\b/i.test(s)) s = CONSULATE_LABEL;
+  return s.length > 48 ? s.slice(0, 46).trim() + '…' : s;
+}
+
+/** Adds past/clash/route/timing facts to one day's items (already sorted). */
+function decorateDay(list, d) {
+  const today = todayStr(), nm = nowMin();
+  const items = list.map(e => Object.assign({}, e, { _s: toMin(e.start), _e: endMin(e), _clash: [], _timing: '' }));
+  items.forEach(it => {
+    it._past = d < today || (d === today && !isAllDay(it) && it._e <= nm);
+  });
+  const timed = items.filter(isTimedEng);
+  let clashPairs = 0;
+  for (let i = 0; i < timed.length; i++) {
+    for (let j = i + 1; j < timed.length; j++) {
+      const a = timed[i], b = timed[j];
+      if (a._s < b._e && b._s < a._e) { a._clash.push(b); b._clash.push(a); clashPairs++; }
+    }
+  }
+  const firm = timed.filter(isConfirmed);
+  let lastPlace = null;
+  items.forEach(it => {
+    if (isTravel(it)) {
+      const info = travelInfo(it);
+      it._kind = info.kind;
+      it._to = info.dest;
+      it._from = info.origin || lastPlace;
+      const prev = firm.filter(x => x._s < it._s).pop();
+      const next = firm.find(x => x._s >= it._s);
+      if (prev && prev._e > it._s) it._timing = 'leaves before the ' + prev.start + ' ends';
+      if (next && it._e > next._s) it._timing = 'arrives after the ' + next.start + ' starts';
+      it._leadsTo = (next && next._s - it._e <= 45 && info.kind !== 'return') ? next : null;
+      lastPlace = info.dest || (info.kind === 'return' ? null : lastPlace);
+    } else if (isTimedEng(it) && isConfirmed(it) && it.venue) {
+      lastPlace = it.venue;
+    }
+  });
+  items._clashPairs = clashPairs;
+  return items;
+}
+
+/** What is happening now and next on one decorated day. */
+function focusOf(items, nm) {
+  const firm = items.filter(x => isTimedEng(x) && isConfirmed(x));
+  const now = firm.find(x => x._s <= nm && nm < x._e) || null;
+  const next = firm.find(x => x._s > nm) || null;
+  const onWay = items.find(x => isTravel(x) && x._s <= nm && nm < x._e) || null;
+  const leg = next ? items.filter(x => isTravel(x) && x._leadsTo === next).pop() || null : null;
+  const nextLeg = items.find(x => isTravel(x) && x._e > nm) || null;
+  return { now: now, next: next, onWay: onWay, leg: leg, nextLeg: nextLeg };
 }
 
 // ----------------------------------------------------------------- agenda
-function visibleEvents() {
-  const to = addDays(state.from, WINDOW_DAYS - 1);
-  const merged = state.all.concat(state.proposals);
-  return merged.filter(e => e.date >= state.from && e.date <= to)
-    .sort((a, b) => (a.date + ' ' + a.start).localeCompare(b.date + ' ' + b.start));
+function allItems() {
+  return state.events.concat(state.proposals.map(p => Object.assign({ type: 'ENGAGEMENT' }, p)))
+    .slice().sort((a, b) => (a.date + ' ' + a.start).localeCompare(b.date + ' ' + b.start));
 }
-
-function isBand(e) {
-  return e.type !== 'TRAVEL' && /^(\[|BLOCKED\b|Place\s?holder\b)/i.test(e.title || '');
+function byDate() {
+  const map = {};
+  allItems().forEach(e => { (map[e.date] = map[e.date] || []).push(e); });
+  return map;
 }
-function isAllDay(e) { return e.start === '00:00' && (e.end === '23:59' || e.end === '00:00'); }
-function minsBetween(a, b) {
-  const p = a.split(':').map(Number), q = b.split(':').map(Number);
-  let d = (q[0] * 60 + q[1]) - (p[0] * 60 + p[1]);
-  if (d < 0) d += 1440;
-  return d;
-}
-function fmtDur(min) {
-  if (!min || min <= 0 || min >= 720) return '';
-  const h = Math.floor(min / 60), m = min % 60;
-  return h ? (m ? h + ' h ' + m + ' min' : h + ' h') : m + ' min';
-}
-function travelInfo(e) {
-  const t = e.title || '';
-  let m;
-  if ((m = t.match(/^Travel\s+[Tt]o\s*\(?\s*(.+?)\)?\s*$/))) return { kind: 'depart', dest: m[1] };
-  if ((m = t.match(/^Travel Back to\s+(.+?)(?:\s+from\b.*)?$/i))) return { kind: 'return', dest: m[1] };
-  if ((m = t.match(/^Return from\s+(.+)$/i))) {
-    const parts = String(e.venue || '').split(/\s+to\s+/i);
-    return { kind: 'return', dest: parts.length > 1 ? parts[parts.length - 1] : 'CGI Auckland' };
-  }
-  return { kind: 'travel', dest: e.venue || t };
-}
-function nowHM() { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 function renderAgenda() {
-  const events = visibleEvents();
-  const byDay = {};
-  events.forEach(e => { (byDay[e.date] = byDay[e.date] || []).push(e); });
-  const frag = document.createDocumentFragment();
+  const map = byDate();
   const today = todayStr();
-
-  // NOW / NEXT markers for today
-  const cur = nowHM();
-  let nowId = null, nextId = null;
-  (byDay[today] || []).forEach(e => {
-    if (isBand(e)) return;
-    if (!nowId && e.start <= cur && cur < e.end) nowId = e.id;
-    if (!nextId && e.start > cur) nextId = e.id;
-  });
-
+  const nm = nowMin();
   const to = addDays(state.from, WINDOW_DAYS - 1);
-  $('range-label').textContent = fmtDate(state.from) + ' - ' + fmtDate(to);
+  $('range-label').textContent = fmtDate(state.from) + ' – ' + fmtDate(to);
 
+  renderFresh();
+
+  const todayItems = decorateDay(map[today] || [], today);
+  const focus = focusOf(todayItems, nm);
+  const showHero = state.from <= today && today <= to;
+  $('hero').innerHTML = showHero ? heroHtml(todayItems, focus, map) : '';
+
+  const frag = document.createDocumentFragment();
   for (let i = 0; i < WINDOW_DAYS; i++) {
     const d = addDays(state.from, i);
-    const list = byDay[d];
-    if (!list && d !== today) continue; // show empty card only for today
-    const day = document.createElement('div');
+    const list = map[d];
+    if (!list && d !== today) continue;
+    const items = decorateDay(list || [], d);
+    const day = document.createElement('section');
     day.className = 'day';
-    const nEng = (list || []).filter(e => e.type !== 'TRAVEL' && !isBand(e)).length;
-    const h = document.createElement('h3');
-    h.innerHTML = '<span class="dname">' + esc(fmtDateLong(d)) + '</span>'
-      + (d === today ? ' <span class="today-tag">&bull; today</span>' : '')
-      + (nEng ? '<span class="count">' + nEng + (nEng === 1 ? ' engagement' : ' engagements') + '</span>' : '');
-    day.appendChild(h);
-    if (!list || !list.length) {
-      day.insertAdjacentHTML('beforeend', '<div class="empty">No engagements.</div>');
+    const nEng = items.filter(e => isEng(e) && isConfirmed(e)).length;
+    const nTravel = items.filter(isTravel).length;
+    let meta = '';
+    if (isDriver()) meta = nTravel ? nTravel + (nTravel === 1 ? ' drive' : ' drives') : '';
+    else meta = nEng ? nEng + (nEng === 1 ? ' engagement' : ' engagements') : '';
+    if (items._clashPairs) meta += (meta ? ' · ' : '') + '<span class="clashn">' + items._clashPairs + (items._clashPairs === 1 ? ' clash' : ' clashes') + '</span>';
+    day.innerHTML = '<div class="dayhead"><span class="dname">' + esc(fmtDateLong(d)) + '</span>'
+      + (d === today ? '<span class="today-tag">Today</span>' : '')
+      + (meta ? '<span class="meta">' + meta + '</span>' : '') + '</div>';
+    if (!items.length) {
+      day.insertAdjacentHTML('beforeend', '<div class="empty">' + (isReception() ? 'No engagements at the Consulate.' : 'No engagements.') + '</div>');
     } else {
-      list.forEach(e => day.appendChild(rowEl(e, e.id === nowId, e.id === nextId)));
+      const isToday = d === today;
+      items.forEach(it => day.appendChild(rowEl(it, {
+        now: isToday && (it === findSame(items, focus.now) || (isTravel(it) && it === findSame(items, focus.onWay))),
+        next: isToday && it === findSame(items, focus.next)
+      })));
     }
     frag.appendChild(day);
   }
-  if (!frag.childNodes.length) frag.appendChild(el('<div class="empty">Nothing in this window.</div>'));
+  if (!frag.childNodes.length) frag.appendChild(el('<div class="empty">Nothing in these two weeks.</div>'));
   $('days').innerHTML = '';
   $('days').appendChild(frag);
-  $('days').insertAdjacentHTML('beforeend',
-    '<div class="note-line">&#128274; End-to-end encrypted &middot; updated ' + esc(state.generatedAt || '') +
-    '<br>Official diary: the Consul General&#8217;s calendar. This view is for office coordination.</div>');
+  let foot = '';
+  if (state.syncTo && to > state.syncTo) foot += 'Synced from Zoho up to ' + esc(fmtDateLong(state.syncTo)) + '. Later dates are not in this view yet.<br>';
+  foot += 'Official diary: the Consul General&#8217;s calendar in Zoho. This view is for office coordination.';
+  $('days').insertAdjacentHTML('beforeend', '<div class="note-line">' + foot + '</div>');
+}
+function findSame(items, x) { return x ? items.find(it => it.id === x.id && it._s === x._s && it.title === x.title) : null; }
+
+// -------------------------------------------------------- freshness strip
+function expectedSlot(before) {
+  const d = new Date(before.getTime());
+  d.setHours(SYNC_AT[0], SYNC_AT[1], 0, 0);
+  if (d.getTime() + SYNC_GRACE_MIN * 60000 > before.getTime()) d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  return d;
+}
+function freshness() {
+  if (!state.syncedAt) return { cls: 'old', text: 'Not synced from Zoho yet' };
+  const t = new Date(state.syncedAt);
+  if (isNaN(t.getTime())) return { cls: 'ok', text: 'Updated ' + state.syncedAt };
+  const now = new Date();
+  const slot = expectedSlot(now);
+  const prevSlot = expectedSlot(new Date(slot.getTime() - 60000));
+  const early = 20 * 60000;
+  const when = relWhen(t);
+  if (t.getTime() >= slot.getTime() - early) return { cls: 'ok', text: 'Updated from Zoho ' + when };
+  if (t.getTime() >= prevSlot.getTime() - early) return { cls: 'stale', text: 'Not updated since ' + when + ' – check Zoho for later changes' };
+  return { cls: 'old', text: 'Not updated since ' + when + ' – the sync has stopped; rely on Zoho' };
+}
+function relWhen(t) {
+  const hm = pad(t.getHours()) + ':' + pad(t.getMinutes());
+  const d = ymd(t), today = todayStr();
+  if (d === today) return 'at ' + hm + ' today';
+  if (d === addDays(today, -1)) return 'yesterday ' + hm;
+  if (d > addDays(today, -6)) return t.toLocaleDateString('en-NZ', { weekday: 'short' }) + ' ' + hm;
+  return fmtDate(d) + ' ' + hm;
+}
+function renderFresh() {
+  const f = freshness();
+  $('fresh').innerHTML = '<div class="fresh ' + f.cls + '"><span class="dot"></span><span>' + esc(f.text) + '</span>'
+    + '<button class="refresh" id="btn-refresh" aria-label="Reload the diary">&#8635; Reload</button></div>';
+  $('btn-refresh').onclick = () => loadEvents(true);
 }
 
-/** One agenda row: office hold band, travel connector, or engagement card. */
-function rowEl(e, isNow, isNext) {
-  if (isBand(e)) {
+// -------------------------------------------------------- next-up panel
+function heroHtml(items, f, map) {
+  const nm = nowMin();
+  if (isDriver()) return driverHero(items, f, map, nm);
+  let h = '<div class="hero">';
+  if (f.now) {
+    h += '<div class="hnow"><div class="lbl">Now <span class="pill">until ' + esc(f.now.end) + '</span></div>'
+      + '<div class="hmain"><div class="htitle">' + esc(f.now.title) + '</div></div>'
+      + (f.now.venue ? '<div class="hvenue">' + esc(shortPlace(f.now.venue)) + '</div>' : '') + '</div>';
+  } else if (f.onWay) {
+    h += '<div class="hnow"><div class="lbl">On the way <span class="pill">arrive ' + esc(f.onWay.end) + '</span></div>'
+      + '<div class="hvenue">' + esc(routeText(f.onWay)) + '</div></div>';
+  }
+  if (f.next) {
+    h += '<div class="lbl">' + (isReception() ? 'Next at the Consulate' : 'Next') + ' <span class="pill">' + esc(inText(f.next._s - nm)) + '</span></div>'
+      + '<div class="hmain"><div class="htime">' + esc(f.next.start) + '</div><div class="htitle">' + esc(f.next.title) + '</div></div>'
+      + (f.next.venue ? '<div class="hvenue">' + esc(f.next.venue) + '</div>' : '');
+    if (f.leg && !isReception()) {
+      if (f.leg._s > nm) {
+        h += '<div class="leave"><span>&#128663;</span><span>Leave ' + esc(f.leg.start)
+          + (f.leg._from ? ' from ' + esc(shortPlace(f.leg._from)) : '') + '</span><span class="in">' + esc(inText(f.leg._s - nm)) + '</span></div>';
+      } else if (f.leg._e > nm) {
+        h += '<div class="leave"><span>&#128663;</span><span>On the way</span><span class="in">arrive ' + esc(f.leg.end) + '</span></div>';
+      }
+    }
+  } else {
+    h += '<div class="lbl">' + (isReception() ? 'Consulate' : 'Today') + '</div>'
+      + '<div class="quiet">' + (f.now ? 'Nothing after this today.' : (isReception() ? 'No more engagements at the Consulate today.' : 'Nothing more today.')) + '</div>';
+    const ahead = firstAhead(map, e => isTimedEng(e) && isConfirmed(e));
+    if (ahead) h += '<div class="later">' + esc(dayWord(ahead.date)) + ': ' + esc(ahead.start) + ' · ' + esc(ahead.title) + '</div>';
+  }
+  return h + '</div>';
+}
+
+function driverHero(items, f, map, nm) {
+  let h = '<div class="hero">';
+  const leg = f.nextLeg;
+  if (leg) {
+    const going = leg._s <= nm;
+    h += '<div class="lbl">' + (going ? 'On the way' : 'Next drive') + ' <span class="pill">'
+      + esc(going ? 'arrive ' + leg.end : inText(leg._s - nm)) + '</span></div>'
+      + '<div class="hmain"><div class="htime">' + esc(leg.start) + '</div><div class="htitle">' + esc(routeText(leg)) + '</div></div>';
+    if (leg._leadsTo) {
+      const e = leg._leadsTo;
+      h += '<div class="hvenue">On site ' + esc(e.start) + '–' + esc(e.end) + ' (' + esc(fmtDur(e._e - e._s)) + ')' + (e.parking ? ' · Parking: ' + esc(e.parking) : '') + '</div>';
+    }
+    if (leg._to) h += '<div class="leave"><span>&#128205;</span><a target="_blank" rel="noopener" href="' + dirUrl(leg._to) + '">Directions to ' + esc(shortPlace(leg._to)) + '</a></div>';
+  } else {
+    h += '<div class="lbl">Today</div><div class="quiet">No more drives today.</div>';
+    const ahead = firstAhead(map, isTravel);
+    if (ahead) h += '<div class="later">' + esc(dayWord(ahead.date)) + ': ' + esc(ahead.start) + ' · ' + esc(routeText(Object.assign({}, ahead, travelBits(ahead)))) + '</div>';
+  }
+  return h + '</div>';
+}
+function travelBits(e) { const i = travelInfo(e); return { _to: i.dest, _from: i.origin, _kind: i.kind }; }
+
+/** First item after today (within the loaded data) that matches. */
+function firstAhead(map, test) {
+  const today = todayStr();
+  const days = Object.keys(map).filter(d => d > today).sort();
+  for (const d of days) {
+    const hit = map[d].find(test);
+    if (hit) return hit;
+  }
+  return null;
+}
+function dayWord(d) { return d === addDays(todayStr(), 1) ? 'Tomorrow' : fmtDateLong(d); }
+
+// ------------------------------------------------------------------ rows
+function rowEl(it, flags) {
+  if (isHold(it)) {
     const b = document.createElement('div');
-    b.className = 'band';
-    const t = isAllDay(e) ? 'All day' : esc(e.start) + '&ndash;' + esc(e.end);
-    b.innerHTML = '<span class="tt">' + t + '</span><span>' + esc(e.title)
-      + (e.tbc ? '<span class="badge tbc">TBC</span>' : '') + '</span>';
+    b.className = 'band' + (it._past ? ' past' : '');
+    b.innerHTML = '<span class="tt">' + (isAllDay(it) ? 'All day' : esc(it.start) + '<small>' + esc(it.end) + '</small>') + '</span>'
+      + '<span class="bx">' + esc(it.title) + (it.tbc ? ' <span class="chip tbc">TBC</span>' : '') + '</span>';
     return b;
   }
-  if (e.type === 'TRAVEL') {
-    const info = travelInfo(e);
-    const r = document.createElement('div');
-    r.className = 'trow';
-    const word = info.kind === 'depart' ? 'depart' : info.kind === 'return' ? 'return' : 'travel';
-    const dur = fmtDur(minsBetween(e.start, e.end));
-    r.innerHTML = '<span class="tt">' + esc(e.start) + '</span>'
-      + '<span>&#128663;</span>'
-      + '<span class="dest">' + esc(word) + ' &rarr; ' + esc(String(info.dest).slice(0, 60)) + '</span>'
-      + (e.tbc ? '<span class="badge tbc">TBC</span>' : '')
-      + (isNow ? '<span class="badge now">NOW</span>' : '')
-      + (dur ? '<span class="dur">' + esc(dur) + ' drive</span>' : '');
-    return r;
-  }
-  return card(e, isNow, isNext);
+  if (isTravel(it)) return travelRow(it, flags);
+  return card(it, flags);
 }
 
-/** Engagement card (also used by the admin pending list). */
-function card(e, isNow, isNext) {
+function routeText(it) {
+  const from = it._from ? shortPlace(it._from) : '';
+  const to = it._to ? shortPlace(it._to) : '';
+  if (from && to) return from + ' → ' + to;
+  if (to) return (it._kind === 'return' ? 'Return to ' : 'To ') + to;
+  if (from) return 'Return from ' + from;
+  return it.title || 'Travel';
+}
+
+function travelRow(it, flags) {
+  const r = document.createElement('div');
+  r.className = 'trow' + (isDriver() ? ' driver' : '') + (it._past ? ' past' : '');
+  const dur = fmtDur(it._e - it._s);
+  let html = '<span class="tt">' + esc(it.start) + '</span><div class="leg"><span>&#128663;</span>'
+    + '<span class="route">' + esc(routeText(it)) + '</span>';
+  if (it.tbc) html += '<span class="chip tbc">TBC</span>';
+  if (flags.now) html += '<span class="chip now">ON THE WAY</span>';
+  if (it._timing) html += '<span class="chip timing" title="' + esc(it._timing) + '">CHECK TIMING</span>';
+  if (isDriver() && it._to) html += '<a target="_blank" rel="noopener" href="' + dirUrl(it._to) + '">Directions</a>';
+  if (dur) html += '<span class="dur">' + esc(dur) + '</span>';
+  html += '</div>';
+  r.innerHTML = html;
+  if (it._timing) {
+    r.querySelector('.leg').insertAdjacentHTML('beforeend', '<span class="dur" style="flex-basis:100%;margin-left:0">This drive ' + esc(it._timing) + '.</span>');
+  }
+  return r;
+}
+
+/** Engagement card (also used in the admin list). */
+function card(it, flags) {
+  flags = flags || {};
   const c = document.createElement('div');
-  c.className = 'card' + (e.status === 'PENDING' ? ' pending' : '') + (isNow ? ' now' : '');
-  let badges = '';
-  if (e.tbc) badges += '<span class="badge tbc">TBC</span>';
-  if (e.status === 'PENDING') badges += '<span class="badge pending">PROPOSED</span>';
-  if (isNow) badges += '<span class="badge now">NOW</span>';
-  if (isNext) badges += '<span class="badge next">NEXT</span>';
-  let html = '<div class="timecol">';
-  if (isAllDay(e)) {
-    html += '<div class="allday">All day</div>';
-  } else {
-    html += '<div class="t1">' + esc(e.start) + '</div><div class="t2">' + esc(e.end) + '</div>';
-  }
+  const clash = (it._clash || []).length > 0;
+  let cls = 'card';
+  if (it._past) cls += ' past';
+  if (flags.now) cls += ' now';
+  if (it.status === 'PROPOSED') cls += ' proposed';
+  if (it.status === 'DIARISED') cls += ' diarised';
+  if (clash) cls += ' clash';
+  c.className = cls;
+
+  let chips = '';
+  if (flags.now) chips += '<span class="chip now">NOW</span>';
+  if (flags.next) chips += '<span class="chip next">NEXT</span>';
+  if (it.tbc) chips += '<span class="chip tbc">TBC</span>';
+  if (clash) chips += '<span class="chip clash">CLASH</span>';
+  if (it.status === 'PROPOSED') chips += '<span class="chip proposed">PROPOSED</span>';
+  if (it.status === 'DIARISED') chips += '<span class="chip diarised">DIARISED &middot; AWAITING SYNC</span>';
+
+  let html = '<div class="tcol">';
+  if (isAllDay(it)) html += '<div class="allday">All day</div>';
+  else html += '<div class="t1">' + esc(it.start) + '</div><div class="t2">' + esc(it.end) + '</div>';
   html += '</div><div class="cbody">';
-  html += '<div class="title">' + esc(e.title) + badges + '</div>';
-  if (e.venue) {
-    html += '<div class="venue">&#128205; <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='
-      + encodeURIComponent(e.venue) + '">' + esc(e.venue) + '</a></div>';
+
+  const driverCard = isDriver() && (!it.title || it.title === 'Engagement');
+  const heading = driverCard ? (it.venue ? shortPlace(it.venue) : 'Engagement') : it.title;
+  html += '<div class="ctitle">' + esc(heading) + (chips ? '<span class="chips">' + chips + '</span>' : '') + '</div>';
+
+  if (driverCard) {
+    if (!isAllDay(it)) html += '<div class="cline">On site ' + esc(fmtDur(it._e - it._s) || '') + '</div>';
+    if (it.venue) html += '<div class="cvenue">' + esc(it.venue) + ' &middot; <a target="_blank" rel="noopener" href="' + dirUrl(it.venue) + '">Directions</a></div>';
+  } else if (it.venue) {
+    html += '<div class="cvenue">&#128205; <a target="_blank" rel="noopener" href="' + mapUrl(it.venue) + '">' + esc(it.venue) + '</a></div>';
   }
-  if (e.notes) html += '<div class="notes">' + esc(e.notes) + '</div>';
+  if (it.parking) html += '<div class="cline">&#127359;&#65039; ' + esc(it.parking) + '</div>';
+  const brief = it.brief || it.notes;
+  if (brief) html += '<div class="brief">' + briefHtml(brief) + '</div>';
+  if (clash) {
+    html += '<div class="cwarn">Overlaps ' + it._clash.map(o => esc(o.start) + '–' + esc(o.end)
+      + (isDriver() ? '' : ' ' + esc(shorten(o.title, 40)))).join('; ') + '</div>';
+  }
+  if (it.createdBy && (it.status === 'PROPOSED' || it.status === 'DIARISED')) html += '<div class="byline">Proposed by ' + esc(it.createdBy) + '</div>';
   html += '</div>';
   c.innerHTML = html;
   return c;
 }
 
-$('btn-prev').onclick = () => { state.from = addDays(state.from, -WINDOW_DAYS); renderAgenda(); };
-$('btn-next').onclick = () => { state.from = addDays(state.from, WINDOW_DAYS); renderAgenda(); };
-$('btn-today').onclick = () => { state.from = todayStr(); loadEvents(); };
+/** "Label: text" lines get a bold label; everything else stays plain. */
+function briefHtml(text) {
+  return String(text).split(/\r?\n/).filter(l => l.trim()).map(line => {
+    const m = line.match(/^\s*([A-Za-z][A-Za-z /&'-]{1,24}):\s*(.+)$/);
+    return '<div>' + (m ? '<b>' + esc(m[1]) + ':</b> ' + esc(m[2]) : esc(line)) + '</div>';
+  }).join('');
+}
 
-// ---------------------------------------------------------------- propose
+function mapUrl(v) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(v); }
+function dirUrl(v) { return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v); }
+
+$('btn-prev').onclick = () => { state.followToday = false; state.from = addDays(state.from, -WINDOW_DAYS); renderAgenda(); };
+$('btn-next').onclick = () => { state.followToday = false; state.from = addDays(state.from, WINDOW_DAYS); renderAgenda(); };
+$('btn-today').onclick = () => { state.followToday = true; state.from = todayStr(); loadEvents(true); };
+
+// --------------------------------------------------------------- propose
 $('btn-propose').onclick = () => {
   $('form-propose').reset();
+  $('form-propose').date.value = todayStr();
   $('propose-error').textContent = '';
   $('dlg-propose').showModal();
 };
@@ -729,82 +1039,117 @@ $('form-propose').addEventListener('submit', async (ev) => {
   if (ev.submitter && ev.submitter.value === 'cancel') return;
   ev.preventDefault();
   const f = new FormData(ev.target);
-  const key = await cachedKey();
-  if (!key) { $('propose-error').textContent = 'Unlock the diary first.'; return; }
   const entry = {
-    title: String(f.get('title') || '').slice(0, 200),
+    title: String(f.get('title') || '').trim().slice(0, 200),
     date: String(f.get('date') || ''),
     start: String(f.get('start') || ''),
     end: String(f.get('end') || ''),
-    venue: String(f.get('venue') || '').slice(0, 300),
-    notes: String(f.get('notes') || '').slice(0, 2000),
-    tbc: true, type: 'ENGAGEMENT'
+    venue: String(f.get('venue') || '').trim().slice(0, 300),
+    notes: String(f.get('notes') || '').trim().slice(0, 2000)
   };
   if (!entry.title || !entry.date || !entry.start || !entry.end) {
     $('propose-error').textContent = 'Title, date and times are required.'; return;
   }
+  if (toMin(entry.end) <= toMin(entry.start)) {
+    $('propose-error').textContent = 'The end time must be after the start time.'; return;
+  }
   $('btn-propose-save').disabled = true;
-  const data = await encryptObj(entry, key);
-  const out = await api('propose', { data: data });
+  const out = await api('propose', entry);
   $('btn-propose-save').disabled = false;
-  if (!out.ok) { $('propose-error').textContent = out.error || 'Could not save.'; return; }
+  if (!out.ok) { $('propose-error').textContent = out.error === 'network' ? 'Network error - try again.' : (out.error || 'Could not save.'); return; }
   $('dlg-propose').close();
   toast('Proposed - the office will diarise it.');
-  loadEvents();
+  loadEvents(true);
 });
 
-// ------------------------------------------------------------------ admin
+// ----------------------------------------------------------------- admin
 $('btn-admin').onclick = () => { showView('admin-view'); loadAdmin(); };
-$('btn-back').onclick = () => { showView('app-view'); loadEvents(); };
+$('btn-back').onclick = () => { hideKey(); showView('app-view'); loadEvents(true); };
+
+let shownKey = '', armNewKey = false;
+function hideKey() {
+  shownKey = '';
+  $('key-box').textContent = '';
+  $('key-box').hidden = true;
+  $('btn-key-copy').hidden = true;
+}
+async function showKey(rotate) {
+  const r = await api('sync_key', rotate ? { rotate: true } : {});
+  if (!r.ok) { toast(r.error || 'Failed.'); return; }
+  shownKey = r.key;
+  $('key-box').textContent = r.key;
+  $('key-box').hidden = false;
+  $('btn-key-copy').hidden = false;
+  if (rotate) toast('New key made. Update the sync task with it.');
+}
+$('btn-key-show').onclick = () => showKey(false);
+$('btn-key-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(shownKey); toast('Copied.'); }
+  catch (err) { toast('Copy failed - select the key and copy it.'); }
+};
+$('btn-key-new').onclick = () => {
+  const b = $('btn-key-new');
+  if (!armNewKey) {
+    armNewKey = true;
+    b.textContent = 'Click again - the sync stops until its key is updated';
+    setTimeout(() => { armNewKey = false; b.textContent = 'Make a new key'; }, 5000);
+    return;
+  }
+  armNewKey = false;
+  b.textContent = 'Make a new key';
+  showKey(true);
+};
 
 async function loadAdmin() {
-  $('pending-list').innerHTML = '<div class="spinner">Loading&hellip;</div>';
-  const pending = state.proposals || [];
-  $('pending-list').innerHTML = pending.length ? '' : '<div class="empty">Nothing pending.</div>';
-  pending.forEach(e => {
-    const c = card(e);
-    const bar = document.createElement('div');
-    bar.style.marginTop = '8px';
-    bar.innerHTML =
-      '<button class="btn mini" data-o="DIARISED">Diarised in Zoho &#10003;</button> ' +
-      '<button class="btn mini" data-o="REJECTED">Reject</button>' +
-      '<span style="font-size:12px;color:var(--muted)"> &nbsp;by ' + esc(e.addedBy || '') + '</span>';
-    bar.querySelectorAll('button').forEach(b => b.onclick = async () => {
-      const r = await api('resolve', { id: e.id, outcome: b.dataset.o });
-      toast(r.ok ? 'Done.' : (r.error || 'Failed.'));
-      const out = await api('events');
-      if (out.ok && out.blob && state.key) { try { await applyBlob(out, state.key); } catch (err) { } }
-      showView('admin-view');
-      loadAdmin();
-    });
-    (c.querySelector('.cbody') || c).appendChild(bar);
-    $('pending-list').appendChild(c);
-  });
-
+  renderPending();
+  $('staff-table').innerHTML = '<div class="spinner">Loading&hellip;</div>';
   const st = await api('staff_list');
   if (st.ok) {
     let html = '<table><tr><th>Email</th><th>Name</th><th>Role</th><th></th></tr>';
     st.staff.forEach(s => {
       html += '<tr class="' + (s.active ? '' : 'inactive') + '"><td>' + esc(s.email) + '</td><td>' + esc(s.name)
-        + '</td><td>' + esc(s.role) + '</td><td><button class="btn mini" data-e="' + esc(s.email)
-        + '">Edit</button></td></tr>';
+        + '</td><td>' + esc(s.role) + '</td><td><button class="btn mini" data-e="' + esc(s.email) + '">Edit</button></td></tr>';
     });
-    html += '</table>';
-    $('staff-table').innerHTML = html;
+    $('staff-table').innerHTML = html + '</table>';
     $('staff-table').querySelectorAll('button').forEach(b => b.onclick = () => {
-      const s = st.staff.find(x => x.email === b.dataset.e);
-      openStaffDialog(s);
+      openStaffDialog(st.staff.find(x => x.email === b.dataset.e));
     });
+  } else {
+    $('staff-table').innerHTML = '<div class="empty">' + esc(st.error || 'Could not load.') + '</div>';
   }
   const lg = await api('log_read');
   if (lg.ok) {
     let html = '<table><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr>';
     lg.log.forEach(r => {
-      html += '<tr><td>' + esc(r.at) + '</td><td>' + esc(r.email) + '</td><td>' + esc(r.action)
-        + '</td><td>' + esc(r.detail) + '</td></tr>';
+      html += '<tr><td>' + esc(r.at) + '</td><td>' + esc(r.email) + '</td><td>' + esc(r.action) + '</td><td>' + esc(r.detail) + '</td></tr>';
     });
     $('log-table').innerHTML = html + '</table>';
   }
+}
+
+function renderPending() {
+  const list = (state.proposals || []).slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+  $('pending-list').innerHTML = list.length ? '' : '<div class="empty">Nothing proposed.</div>';
+  list.forEach(p => {
+    const items = decorateDay(byDate()[p.date] || [], p.date);
+    const it = items.find(x => x.id === p.id) || decorateDay([Object.assign({ type: 'ENGAGEMENT' }, p)], p.date)[0];
+    const c = card(it, {});
+    const bar = document.createElement('div');
+    bar.className = 'actions';
+    bar.innerHTML = '<span class="byline" style="margin:0">' + esc(fmtDateLong(p.date)) + '</span>'
+      + (p.status === 'PROPOSED'
+        ? '<button class="btn mini" data-o="DIARISED">Diarised in Zoho &#10003;</button><button class="btn mini" data-o="REJECTED">Reject</button>'
+        : '<button class="btn mini" data-o="ARCHIVED">Remove now</button>');
+    bar.querySelectorAll('button').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      const r = await api('resolve', { id: p.id, outcome: b.dataset.o });
+      toast(r.ok ? 'Done.' : (r.error || 'Failed.'));
+      await loadEvents(true);
+      renderPending();
+    });
+    (c.querySelector('.cbody') || c).appendChild(bar);
+    $('pending-list').appendChild(c);
+  });
 }
 
 $('btn-add-staff').onclick = () => openStaffDialog(null);
@@ -815,7 +1160,7 @@ function openStaffDialog(s) {
   $('staff-error').textContent = '';
   if (s) {
     f.email.value = s.email; f.email.readOnly = true;
-    f.name.value = s.name; f.role.value = s.role; f.active.checked = s.active;
+    f.name.value = s.name; f.role.value = s.role; f.active.checked = !!s.active;
   } else {
     f.email.readOnly = false;
   }
@@ -836,15 +1181,12 @@ $('form-staff').addEventListener('submit', async (ev) => {
   loadAdmin();
 });
 
-// ---------------------------------------------------------------- helpers
-function todayStr() {
-  const d = new Date();
-  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-}
+// --------------------------------------------------------------- helpers
+function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function todayStr() { return ymd(new Date()); }
 function addDays(dstr, n) {
   const p = dstr.split('-').map(Number);
-  const d = new Date(p[0], p[1] - 1, p[2] + n);
-  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  return ymd(new Date(p[0], p[1] - 1, p[2] + n));
 }
 function pad(n) { return (n < 10 ? '0' : '') + n; }
 function fmtDate(dstr) {
@@ -853,8 +1195,20 @@ function fmtDate(dstr) {
 }
 function fmtDateLong(dstr) {
   const p = dstr.split('-').map(Number);
-  return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'long' });
+  return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long' });
 }
+function fmtDur(min) {
+  if (!min || min <= 0 || min >= 720) return '';
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? (m ? h + ' h ' + m + ' min' : h + ' h') : m + ' min';
+}
+function inText(min) {
+  if (min <= 0) return 'now';
+  if (min < 60) return 'in ' + min + ' min';
+  const h = Math.floor(min / 60), m = min % 60;
+  return 'in ' + h + ' h' + (m ? ' ' + m + ' min' : '');
+}
+function shorten(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).trim() + '…' : s; }
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
