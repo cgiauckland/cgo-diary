@@ -526,7 +526,7 @@
     <div class="field"><label>Name</label><input name="name" required maxlength="100"></div>
     <div class="field"><label>Role</label>
       <select name="role">
-        <option value="RECEPTION">RECEPTION - Consulate engagements only</option>
+        <option value="RECEPTION">RECEPTIONIST - all meetings and events at the Consulate</option>
         <option value="DRIVER">DRIVER - engagements, drives, arrival, parking, programme; no briefs</option>
         <option value="FULL">FULL - all details, can propose</option>
         <option value="ADMIN">ADMIN - full control</option>
@@ -660,7 +660,7 @@ function roleLabel(r) {
   return r === 'ADMIN' ? 'Admin'
     : r === 'FULL' ? 'Full view'
     : r === 'DRIVER' ? 'Driver view'
-    : 'Reception - Consulate only';
+    : 'Receptionist - Consulate only';
 }
 function canPropose() { return state.role === 'ADMIN' || state.role === 'FULL'; }
 function isDriver() { return state.role === 'DRIVER'; }
@@ -1230,7 +1230,7 @@ async function loadAdmin() {
     let html = '<table><tr><th>Email</th><th>Name</th><th>Role</th><th></th></tr>';
     st.staff.forEach(s => {
       html += '<tr class="' + (s.active ? '' : 'inactive') + '"><td>' + esc(s.email) + '</td><td>' + esc(s.name)
-        + '</td><td>' + esc(s.role) + '</td><td><button class="btn mini" data-e="' + esc(s.email) + '">Edit</button></td></tr>';
+        + '</td><td>' + esc(s.role === 'RECEPTION' ? 'RECEPTIONIST' : s.role) + '</td><td><button class="btn mini" data-e="' + esc(s.email) + '">Edit</button></td></tr>';
     });
     $('staff-table').innerHTML = html + '</table>';
     $('staff-table').querySelectorAll('button').forEach(b => b.onclick = () => {
