@@ -241,6 +241,9 @@
   .hero .hnow .htitle { font-size: 16px; }
   .hero .quiet { margin-top: 6px; font-size: 16px; font-weight: 600; }
   .hero .later { margin-top: 6px; font-size: 14.5px; color: var(--hero-muted); }
+  .hero .hdetail { margin-top: 8px; font-size: 14.5px; line-height: 1.45; color: var(--hero-muted); overflow-wrap: anywhere; }
+  .hero .hdetail b { font-weight: 650; color: var(--hero-ink); }
+  .hero .hdetail .what { font-size: 15.5px; font-weight: 650; color: var(--hero-ink); }
 
   /* toolbar */
   .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
@@ -315,7 +318,23 @@
     overflow-wrap: anywhere;
   }
   .brief b { font-weight: 650; color: var(--ink); }
-  .cline { margin-top: 5px; font-size: 14px; color: var(--ink-2); }
+  .cline { margin-top: 5px; font-size: 14px; line-height: 1.45; color: var(--ink-2); overflow-wrap: anywhere; }
+  .cline b { font-weight: 650; color: var(--ink); }
+  .files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .filechip {
+    max-width: 100%;
+    padding: 5px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .filechip:hover { border-color: var(--blue); }
   .cwarn { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--red); }
   .byline { margin-top: 6px; font-size: 13px; color: var(--muted); }
 
@@ -358,6 +377,18 @@
   }
   dialog::backdrop { background: rgba(12, 18, 34, .5); }
   dialog h3 { margin: 0 0 12px; font-size: 17px; color: var(--heading); }
+  dialog.wide { width: min(900px, 96vw); max-height: 92vh; }
+  .fhead { display: flex; align-items: flex-start; gap: 10px; }
+  .fhead h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .factions { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 10px; }
+  .factions a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+  .fbody { max-height: 72vh; overflow: auto; }
+  .fbody iframe { display: block; width: 100%; height: 70vh; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .fbody img { display: block; max-width: 100%; height: auto; }
+  .docx { padding: 18px 20px; border-radius: 8px; background: #fff; color: #111; font-size: 15px; line-height: 1.5; }
+  .docx img { max-width: 100%; height: auto; }
+  .docx table { background: #fff; }
+  .docx td, .docx th { border-color: #ccc; }
   .field { margin-bottom: 10px; }
   .field label { display: block; margin-bottom: 3px; font-size: 13px; color: var(--muted); }
   .field input, .field select, .field textarea {
@@ -496,7 +527,7 @@
     <div class="field"><label>Role</label>
       <select name="role">
         <option value="RECEPTION">RECEPTION - Consulate engagements only</option>
-        <option value="DRIVER">DRIVER - drives, times and venues only</option>
+        <option value="DRIVER">DRIVER - engagements, drives, arrival, parking, programme; no briefs</option>
         <option value="FULL">FULL - all details, can propose</option>
         <option value="ADMIN">ADMIN - full control</option>
       </select>
@@ -508,6 +539,15 @@
       <button class="btn primary" value="default">Save</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="dlg-file" class="wide">
+  <div class="fhead">
+    <h3 id="file-title">Attachment</h3>
+    <button class="btn mini" id="btn-file-close">Close</button>
+  </div>
+  <div class="factions" id="file-actions"></div>
+  <div class="fbody" id="file-body"></div>
 </dialog>
 
 <div id="toast"></div>
@@ -870,7 +910,8 @@ function heroHtml(items, f, map) {
   if (f.next) {
     h += '<div class="lbl">' + (isReception() ? 'Next at the Consulate' : 'Next') + ' <span class="pill">' + esc(inText(f.next._s - nm)) + '</span></div>'
       + '<div class="hmain"><div class="htime">' + esc(f.next.start) + '</div><div class="htitle">' + esc(f.next.title) + '</div></div>'
-      + (f.next.venue ? '<div class="hvenue">' + esc(f.next.venue) + '</div>' : '');
+      + (f.next.venue ? '<div class="hvenue">' + esc(f.next.venue) + '</div>' : '')
+      + (f.next.arrive && !isReception() ? '<div class="hvenue">Arrive: ' + esc(f.next.arrive) + '</div>' : '');
     if (f.leg && !isReception()) {
       if (f.leg._s > nm) {
         h += '<div class="leave"><span>&#128663;</span><span>Leave ' + esc(f.leg.start)
@@ -896,16 +937,23 @@ function driverHero(items, f, map, nm) {
     h += '<div class="lbl">' + (going ? 'On the way' : 'Next drive') + ' <span class="pill">'
       + esc(going ? 'arrive ' + leg.end : inText(leg._s - nm)) + '</span></div>'
       + '<div class="hmain"><div class="htime">' + esc(leg.start) + '</div><div class="htitle">' + esc(routeText(leg)) + '</div></div>';
-    if (leg._leadsTo) {
-      const e = leg._leadsTo;
-      h += '<div class="hvenue">On site ' + esc(e.start) + '–' + esc(e.end) + ' (' + esc(fmtDur(e._e - e._s)) + ')' + (e.parking ? ' · Parking: ' + esc(e.parking) : '') + '</div>';
-    }
+    if (leg._leadsTo) h += driveDetail(leg._leadsTo);
     if (leg._to) h += '<div class="leave"><span>&#128205;</span><a target="_blank" rel="noopener" href="' + dirUrl(leg._to) + '">Directions to ' + esc(shortPlace(leg._to)) + '</a></div>';
   } else {
     h += '<div class="lbl">Today</div><div class="quiet">No more drives today.</div>';
     const ahead = firstAhead(map, isTravel);
     if (ahead) h += '<div class="later">' + esc(dayWord(ahead.date)) + ': ' + esc(ahead.start) + ' · ' + esc(routeText(Object.assign({}, ahead, travelBits(ahead)))) + '</div>';
   }
+  return h + '</div>';
+}
+/** What the driver needs about the engagement a drive leads to. */
+function driveDetail(e) {
+  let h = '<div class="hdetail">';
+  if (e.title && e.title !== 'Engagement') h += '<div class="what">' + esc(e.title) + '</div>';
+  h += '<div>On site ' + esc(e.start) + '–' + esc(e.end) + (e._e > e._s ? ' (' + esc(fmtDur(e._e - e._s)) + ')' : '') + '</div>';
+  if (e.arrive) h += '<div><b>Arrive:</b> ' + esc(e.arrive) + '</div>';
+  if (e.parking) h += '<div><b>Parking:</b> ' + esc(e.parking) + '</div>';
+  if (e.programme) h += '<div><b>Programme:</b> ' + esc(e.programme) + '</div>';
   return h + '</div>';
 }
 function travelBits(e) { const i = travelInfo(e); return { _to: i.dest, _from: i.origin, _kind: i.kind }; }
@@ -989,19 +1037,25 @@ function card(it, flags) {
   else html += '<div class="t1">' + esc(it.start) + '</div><div class="t2">' + esc(it.end) + '</div>';
   html += '</div><div class="cbody">';
 
-  const driverCard = isDriver() && (!it.title || it.title === 'Engagement');
-  const heading = driverCard ? (it.venue ? shortPlace(it.venue) : 'Engagement') : it.title;
+  const untitled = isDriver() && (!it.title || it.title === 'Engagement');
+  const heading = untitled ? (it.venue ? shortPlace(it.venue) : 'Engagement') : it.title;
   html += '<div class="ctitle">' + esc(heading) + (chips ? '<span class="chips">' + chips + '</span>' : '') + '</div>';
 
-  if (driverCard) {
-    if (!isAllDay(it)) html += '<div class="cline">On site ' + esc(fmtDur(it._e - it._s) || '') + '</div>';
-    if (it.venue) html += '<div class="cvenue">' + esc(it.venue) + ' &middot; <a target="_blank" rel="noopener" href="' + dirUrl(it.venue) + '">Directions</a></div>';
+  if (isDriver()) {
+    if (it.venue) html += '<div class="cvenue">&#128205; ' + esc(it.venue) + ' &middot; <a target="_blank" rel="noopener" href="' + dirUrl(it.venue) + '">Directions</a></div>';
+    if (!isAllDay(it) && it._e > it._s) html += '<div class="cline">On site ' + esc(fmtDur(it._e - it._s)) + '</div>';
   } else if (it.venue) {
     html += '<div class="cvenue">&#128205; <a target="_blank" rel="noopener" href="' + mapUrl(it.venue) + '">' + esc(it.venue) + '</a></div>';
   }
-  if (it.parking) html += '<div class="cline">&#127359;&#65039; ' + esc(it.parking) + '</div>';
+  if (it.arrive) html += '<div class="cline"><b>Arrive:</b> ' + esc(it.arrive) + '</div>';
+  if (it.parking) html += '<div class="cline"><b>Parking:</b> ' + esc(it.parking) + '</div>';
+  if (it.programme) html += '<div class="cline"><b>Programme:</b> ' + esc(it.programme) + '</div>';
   const brief = it.brief || it.notes;
   if (brief) html += '<div class="brief">' + briefHtml(brief) + '</div>';
+  if (it.files && it.files.length) {
+    html += '<div class="files">' + it.files.map(f => '<button type="button" class="filechip" data-key="' + esc(f.key)
+      + '" data-name="' + esc(f.name) + '">&#128206; ' + esc(f.name) + (f.size ? ' <small>(' + esc(fmtSize(f.size)) + ')</small>' : '') + '</button>').join('') + '</div>';
+  }
   if (clash) {
     html += '<div class="cwarn">Overlaps ' + it._clash.map(o => esc(o.start) + '–' + esc(o.end)
       + (isDriver() ? '' : ' ' + esc(shorten(o.title, 40)))).join('; ') + '</div>';
@@ -1019,6 +1073,74 @@ function briefHtml(text) {
     return '<div>' + (m ? '<b>' + esc(m[1]) + ':</b> ' + esc(m[2]) : esc(line)) + '</div>';
   }).join('');
 }
+
+function fmtSize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+
+// ------------------------------------------------------- attached files
+// Pre-meeting briefs and tickets attached to the Zoho entry. Only the office
+// roles receive them; the server refuses the file to anyone else.
+let fileUrl = null;
+const MAMMOTH_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js';
+const MAMMOTH_SRI = 'sha384-/cXAMbzovUIKbBERjPmR3SnPTh8siWr5lsvFYj1Uq4XP0yaJUZJmsh0YXyGv5P0y';
+let mammothLoading = null;
+function loadMammoth() {
+  if (window.mammoth) return Promise.resolve();
+  if (!mammothLoading) {
+    mammothLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = MAMMOTH_SRC; s.integrity = MAMMOTH_SRI; s.crossOrigin = 'anonymous';
+      s.onload = () => resolve(); s.onerror = () => { mammothLoading = null; reject(new Error('viewer')); };
+      document.head.appendChild(s);
+    });
+  }
+  return mammothLoading;
+}
+
+async function openFile(key, name) {
+  const d = $('dlg-file');
+  $('file-title').textContent = name || 'Attachment';
+  $('file-actions').innerHTML = '';
+  $('file-body').innerHTML = '<div class="spinner">Opening…</div>';
+  if (!d.open) d.showModal();
+  const r = await api('file', { key: key });
+  if (!r.ok) {
+    if (r.error !== 'SESSION_EXPIRED') $('file-body').innerHTML = '<div class="empty">' + esc(r.error === 'network' ? 'Network error - check your connection.' : (r.error || 'Could not open the file.')) + '</div>';
+    return;
+  }
+  const bin = atob(r.data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const type = r.type || 'application/octet-stream';
+  if (fileUrl) URL.revokeObjectURL(fileUrl);
+  fileUrl = URL.createObjectURL(new Blob([bytes], { type: type }));
+  $('file-actions').innerHTML = '<a class="btn mini" target="_blank" rel="noopener" href="' + fileUrl + '">Open</a>'
+    + '<a class="btn mini" download="' + esc(r.name) + '" href="' + fileUrl + '">Download</a>';
+  const nm = String(r.name || '');
+  if (/pdf/i.test(type) || /\.pdf$/i.test(nm)) {
+    $('file-body').innerHTML = '<iframe title="' + esc(nm) + '" src="' + fileUrl + '"></iframe>';
+  } else if (/wordprocessingml/i.test(type) || /\.docx$/i.test(nm)) {
+    try {
+      await loadMammoth();
+      const out = await window.mammoth.convertToHtml({ arrayBuffer: bytes.buffer });
+      $('file-body').innerHTML = '<div class="docx">' + out.value + '</div>';
+    } catch (err) {
+      $('file-body').innerHTML = '<div class="empty">This file could not be shown here. Use Open or Download above.</div>';
+    }
+  } else if (/^image\//i.test(type)) {
+    $('file-body').innerHTML = '<img alt="' + esc(nm) + '" src="' + fileUrl + '">';
+  } else {
+    $('file-body').innerHTML = '<div class="empty">Use Open or Download above to view this file.</div>';
+  }
+}
+$('btn-file-close').onclick = () => $('dlg-file').close();
+$('dlg-file').addEventListener('close', () => {
+  $('file-body').innerHTML = '';
+  if (fileUrl) { URL.revokeObjectURL(fileUrl); fileUrl = null; }
+});
+$('days').addEventListener('click', (ev) => {
+  const b = ev.target.closest('.filechip');
+  if (b) openFile(b.dataset.key, b.dataset.name);
+});
 
 function mapUrl(v) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(v); }
 function dirUrl(v) { return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v); }
