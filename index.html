@@ -1103,6 +1103,7 @@ function card(it, flags) {
     html += '<div class="cwarn">Overlaps ' + it._clash.map(o => esc(o.start) + '–' + esc(o.end)
       + (isDriver() ? '' : ' ' + esc(shorten(o.title, 40)))).join('; ') + '</div>';
   }
+  if (it.alsoAs && it.alsoAs.length) html += '<div class="byline">Shown once: also in Zoho as ' + it.alsoAs.map(t => '“' + esc(shorten(t, 70)) + '”').join(', ') + '</div>';
   if (it.createdBy && (it.status === 'PROPOSED' || it.status === 'DIARISED')) html += '<div class="byline">Proposed by ' + esc(it.createdBy) + '</div>';
   html += '</div>';
   c.innerHTML = html;
