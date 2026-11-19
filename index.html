@@ -262,6 +262,15 @@
   .btn:disabled { opacity: .5; cursor: default; }
   .btn.mini { min-height: 32px; padding: 4px 10px; font-size: 13px; }
 
+  /* admin: view the diary as another role */
+  .viewas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; }
+  .viewas .vlbl { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .seg { display: inline-flex; flex-wrap: wrap; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+  .seg button { min-height: 32px; padding: 4px 11px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13.5px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--btn-primary); color: #fff; font-weight: 600; }
+  .viewas-note { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--amber-bg); color: var(--amber); font-size: 14px; font-weight: 600; }
+
   /* agenda */
   .day { margin-bottom: 26px; }
   .dayhead {
@@ -463,6 +472,16 @@
 </main>
 
 <main id="app-view" hidden>
+  <div class="viewas" id="viewas" hidden>
+    <span class="vlbl">View as</span>
+    <div class="seg" role="group" aria-label="View the diary as">
+      <button type="button" data-v="">Me</button>
+      <button type="button" data-v="FULL">Full (CG)</button>
+      <button type="button" data-v="DRIVER">Driver</button>
+      <button type="button" data-v="RECEPTION">Receptionist</button>
+    </div>
+  </div>
+  <div class="viewas-note" id="viewas-note" hidden></div>
   <div id="fresh"></div>
   <div id="hero"></div>
   <div class="toolbar">
@@ -570,6 +589,7 @@ $('login-title').textContent = APP_TITLE;
 
 const state = {
   session: null, name: null, role: null, email: null,
+  viewAs: null, loadSeq: 0,          // admin only: preview the diary as FULL / DRIVER / RECEPTION
   from: todayStr(), followToday: true,
   events: [], proposals: [],
   syncedAt: null, syncFrom: null, syncTo: null,
@@ -634,7 +654,7 @@ async function onCredential(resp) {
 
 function clearSession() {
   try { localStorage.removeItem('cgo_session'); } catch (err) { }
-  state.session = null; state.role = null;
+  state.session = null; state.role = null; state.viewAs = null;
   state.events = []; state.proposals = []; state.loadedAt = 0;
 }
 
@@ -650,8 +670,7 @@ function showView(id, msg) {
 function showLogin(msg) { showView('login-view', msg); }
 
 function enterApp() {
-  $('whoami').innerHTML = esc(state.name) + '<br>' + esc(roleLabel(state.role));
-  $('btn-propose').hidden = !canPropose();
+  updateRoleUi();
   showView('app-view');
   loadEvents(false);
 }
@@ -662,9 +681,33 @@ function roleLabel(r) {
     : r === 'DRIVER' ? 'Driver view'
     : 'Receptionist - Consulate only';
 }
-function canPropose() { return state.role === 'ADMIN' || state.role === 'FULL'; }
-function isDriver() { return state.role === 'DRIVER'; }
-function isReception() { return state.role === 'RECEPTION'; }
+/** The role the diary is drawn for: your own, or the one an admin is previewing. */
+function viewRole() { return state.viewAs || state.role; }
+function canPropose() { const r = viewRole(); return r === 'ADMIN' || r === 'FULL'; }
+function isDriver() { return viewRole() === 'DRIVER'; }
+function isReception() { return viewRole() === 'RECEPTION'; }
+
+const VIEW_AS_WHO = { FULL: 'a Full-view user such as the CG', DRIVER: 'the driver', RECEPTION: 'the receptionist' };
+function updateRoleUi() {
+  if (state.role !== 'ADMIN') state.viewAs = null;
+  $('whoami').innerHTML = esc(state.name) + '<br>' + esc(roleLabel(state.role))
+    + (state.viewAs ? ' &middot; viewing as ' + esc(state.viewAs === 'RECEPTION' ? 'Receptionist' : state.viewAs === 'DRIVER' ? 'Driver' : 'Full') : '');
+  $('btn-propose').hidden = !canPropose();
+  $('viewas').hidden = state.role !== 'ADMIN';
+  $('viewas').querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.v || null) === state.viewAs));
+  $('viewas-note').hidden = !state.viewAs;
+  $('viewas-note').textContent = state.viewAs ? 'Showing exactly what ' + VIEW_AS_WHO[state.viewAs] + ' sees. Tap Me to go back.' : '';
+}
+$('viewas').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button');
+  if (!b || state.role !== 'ADMIN') return;
+  const v = b.dataset.v || null;
+  if (v === state.viewAs) return;
+  state.viewAs = v;
+  state.events = []; state.proposals = []; state.loadedAt = 0;
+  updateRoleUi();
+  loadEvents(false);
+});
 
 $('btn-signout').onclick = async () => {
   await api('logout');
@@ -674,10 +717,12 @@ $('btn-signout').onclick = async () => {
 
 // ------------------------------------------------------------ load diary
 async function loadEvents(quiet) {
-  if (state.loading) return;
+  if (state.loading && quiet) return;
+  const seq = ++state.loadSeq;       // a newer load (say, after switching View as) wins
   state.loading = true;
   if (!quiet) $('days').innerHTML = '<div class="spinner">Loading&hellip;</div>';
-  const out = await api('events');
+  const out = await api('events', state.viewAs ? { viewAs: state.viewAs } : {});
+  if (seq !== state.loadSeq) return;
   state.loading = false;
   if (!out.ok) {
     if (out.error === 'SESSION_EXPIRED') return;
@@ -685,11 +730,9 @@ async function loadEvents(quiet) {
     $('days').innerHTML = '<div class="empty">' + esc(out.error === 'network' ? 'Network error - check your connection.' : (out.error || 'Could not load.')) + '</div>';
     return;
   }
-  if (out.role && out.role !== state.role) {
-    state.role = out.role;
-    $('whoami').innerHTML = esc(state.name) + '<br>' + esc(roleLabel(state.role));
-    $('btn-propose').hidden = !canPropose();
-  }
+  if (out.role && out.role !== state.role) state.role = out.role;
+  if ((out.viewAs || null) !== state.viewAs) state.viewAs = out.viewAs || null;
+  updateRoleUi();
   state.events = Array.isArray(out.events) ? out.events : [];
   state.proposals = Array.isArray(out.proposals) ? out.proposals : [];
   state.syncedAt = out.syncedAt || null;
@@ -1185,8 +1228,12 @@ $('form-propose').addEventListener('submit', async (ev) => {
 });
 
 // ----------------------------------------------------------------- admin
-$('btn-admin').onclick = () => { showView('admin-view'); loadAdmin(); };
-$('btn-back').onclick = () => { hideKey(); showView('app-view'); loadEvents(true); };
+$('btn-admin').onclick = () => {
+  // The admin page is always your own view; leave any View as preview first.
+  if (state.viewAs) { state.viewAs = null; state.events = []; state.proposals = []; state.loadedAt = 0; updateRoleUi(); }
+  showView('admin-view'); loadAdmin();
+};
+$('btn-back').onclick = () => { hideKey(); showView('app-view'); loadEvents(state.events.length > 0); };
 
 let shownKey = '', armNewKey = false;
 function hideKey() {
