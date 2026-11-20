@@ -317,6 +317,7 @@
   .chip.diarised { background: var(--blue-bg); color: var(--blue); }
   .cvenue { margin-top: 4px; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
   .cvenue a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  a.gmap { white-space: nowrap; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
   .brief {
     margin-top: 8px;
     padding-top: 8px;
@@ -953,7 +954,8 @@ function heroHtml(items, f, map) {
   if (f.next) {
     h += '<div class="lbl">' + (isReception() ? 'Next at the Consulate' : 'Next') + ' <span class="pill">' + esc(inText(f.next._s - nm)) + '</span></div>'
       + '<div class="hmain"><div class="htime">' + esc(f.next.start) + '</div><div class="htitle">' + esc(f.next.title) + '</div></div>'
-      + (f.next.venue ? '<div class="hvenue">' + esc(f.next.venue) + '</div>' : '')
+      + (f.next.venue || noteMap(f.next) ? '<div class="hvenue">' + esc(f.next.venue || '')
+        + (noteMap(f.next) ? (f.next.venue ? ' &middot; ' : '') + mapsLink(noteMap(f.next)) : '') + '</div>' : '')
       + (f.next.arrive && !isReception() ? '<div class="hvenue">Arrive: ' + esc(f.next.arrive) + '</div>' : '');
     if (f.leg && !isReception()) {
       if (f.leg._s > nm) {
@@ -981,7 +983,10 @@ function driverHero(items, f, map, nm) {
       + esc(going ? 'arrive ' + leg.end : inText(leg._s - nm)) + '</span></div>'
       + '<div class="hmain"><div class="htime">' + esc(leg.start) + '</div><div class="htitle">' + esc(routeText(leg)) + '</div></div>';
     if (leg._leadsTo) h += driveDetail(leg._leadsTo);
-    if (leg._to) h += '<div class="leave"><span>&#128205;</span><a target="_blank" rel="noopener" href="' + dirUrl(leg._to) + '">Directions to ' + esc(shortPlace(leg._to)) + '</a></div>';
+    const pin = noteMap(leg) || noteMap(leg._leadsTo);
+    const place = leg._to || (leg._leadsTo && leg._leadsTo.venue) || '';
+    if (pin) h += '<div class="leave"><span>&#128205;</span>' + mapsLink(pin, place ? 'Google Maps: ' + shortPlace(place) : 'Google Maps') + '</div>';
+    else if (leg._to) h += '<div class="leave"><span>&#128205;</span><a target="_blank" rel="noopener" href="' + dirUrl(leg._to) + '">Directions to ' + esc(shortPlace(leg._to)) + '</a></div>';
   } else {
     h += '<div class="lbl">Today</div><div class="quiet">No more drives today.</div>';
     const ahead = firstAhead(map, isTravel);
@@ -1044,7 +1049,9 @@ function travelRow(it, flags) {
   if (it.tbc) html += '<span class="chip tbc">TBC</span>';
   if (flags.now) html += '<span class="chip now">ON THE WAY</span>';
   if (it._timing) html += '<span class="chip timing" title="' + esc(it._timing) + '">CHECK TIMING</span>';
-  if (isDriver() && it._to) html += '<a target="_blank" rel="noopener" href="' + dirUrl(it._to) + '">Directions</a>';
+  const pin = noteMap(it) || noteMap(it._leadsTo);
+  if (isDriver() && pin) html += mapsLink(pin);
+  else if (isDriver() && it._to) html += '<a target="_blank" rel="noopener" href="' + dirUrl(it._to) + '">Directions</a>';
   if (dur) html += '<span class="dur">' + esc(dur) + '</span>';
   html += '</div>';
   r.innerHTML = html;
@@ -1084,12 +1091,14 @@ function card(it, flags) {
   const heading = untitled ? (it.venue ? shortPlace(it.venue) : 'Engagement') : it.title;
   html += '<div class="ctitle">' + esc(heading) + (chips ? '<span class="chips">' + chips + '</span>' : '') + '</div>';
 
-  if (isDriver()) {
-    if (it.venue) html += '<div class="cvenue">&#128205; ' + esc(it.venue) + ' &middot; <a target="_blank" rel="noopener" href="' + dirUrl(it.venue) + '">Directions</a></div>';
-    if (!isAllDay(it) && it._e > it._s) html += '<div class="cline">On site ' + esc(fmtDur(it._e - it._s)) + '</div>';
-  } else if (it.venue) {
-    html += '<div class="cvenue">&#128205; <a target="_blank" rel="noopener" href="' + mapUrl(it.venue) + '">' + esc(it.venue) + '</a></div>';
+  // Venue, then a Google Maps link: the one from the Zoho note when there is one,
+  // otherwise a search for the venue (directions for the driver).
+  const pin = noteMap(it);
+  if (it.venue || pin) {
+    html += '<div class="cvenue">&#128205; ' + (it.venue ? esc(it.venue) + ' &middot; ' : '')
+      + mapsLink(pin || (isDriver() ? dirUrl(it.venue) : mapUrl(it.venue))) + '</div>';
   }
+  if (isDriver() && !isAllDay(it) && it._e > it._s) html += '<div class="cline">On site ' + esc(fmtDur(it._e - it._s)) + '</div>';
   if (it.arrive) html += '<div class="cline"><b>Arrive:</b> ' + esc(it.arrive) + '</div>';
   if (it.parking) html += '<div class="cline"><b>Parking:</b> ' + esc(it.parking) + '</div>';
   if (it.programme) html += '<div class="cline"><b>Programme:</b> ' + esc(it.programme) + '</div>';
@@ -1186,6 +1195,15 @@ $('days').addEventListener('click', (ev) => {
   if (b) openFile(b.dataset.key, b.dataset.name);
 });
 
+// A Google Maps link copied from the entry's Zoho note; checked again here before it
+// becomes a link (share links and google.com/maps addresses only).
+function noteMap(it) {
+  const ok = /^https:\/\/(maps\.app\.goo\.gl\/|goo\.gl\/maps\/|(www\.)?google\.[a-z]{2,3}(\.[a-z]{2})?\/maps\b|maps\.google\.[a-z]{2,3}(\.[a-z]{2})?\/|g\.page\/|share\.google\/)[^\s"'<>\\]*$/i;
+  return it && typeof it.map === 'string' && ok.test(it.map) ? it.map : '';
+}
+function mapsLink(href, label) {
+  return '<a class="gmap" target="_blank" rel="noopener" href="' + esc(href) + '">' + esc(label || 'Google Maps') + '</a>';
+}
 function mapUrl(v) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(v); }
 function dirUrl(v) { return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v); }
 
