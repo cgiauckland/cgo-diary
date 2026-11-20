@@ -785,7 +785,10 @@ function travelInfo(e) {
   const v = String(e.venue || '').trim();
   let m;
   if ((m = t.match(/^Travel\s+back\s+to\s+(.+?)(?:\s+from\s+(.+))?$/i))) return { kind: 'return', dest: clean(m[1]), origin: m[2] ? clean(m[2]) : null };
-  if ((m = t.match(/^Travel\s+to\s*(.+)$/i))) return { kind: 'depart', dest: clean(m[1]) || v || null, origin: null };
+  if ((m = t.match(/^Travel\s+to\s*(.+)$/i))) {
+    const parts = v.split(/\s+to\s+/i);             // venue "CGI Auckland to Mr. Morris, Britomart"
+    return { kind: 'depart', dest: clean(m[1]) || v || null, origin: parts.length > 1 ? clean(parts[0]) : null };
+  }
   if ((m = t.match(/^Return\s+from\s+(.+)$/i))) {
     const parts = v.split(/\s+to\s+/i);
     return { kind: 'return', origin: clean(m[1]), dest: parts.length > 1 ? clean(parts[parts.length - 1]) : null };
@@ -826,9 +829,8 @@ function decorateDay(list, d) {
       const prev = firm.filter(x => x._s < it._s).pop();
       const next = firm.find(x => x._s >= it._s);
       if (it._guess === 'to') {
-        if (prev && prev._e > it._s && prev._e <= it._e) {
-          it._timing = prev._e === it._e ? 'has no time after the ' + prev.start + ' ends' : 'has only ' + (it._e - prev._e) + ' min after the ' + prev.start + ' ends';
-        }
+        const busy = firm.filter(x => x !== it._for && x._s < it._e && x._e > it._s && x._e <= it._e).pop();
+        if (busy) it._timing = busy._e === it._e ? 'has no time after the ' + busy.start + ' ends' : 'has only ' + (it._e - busy._e) + ' min after the ' + busy.start + ' ends';
       } else if (it._guess === 'back') {
         if (next && it._e > next._s) it._timing = 'leaves only ' + (next._s - it._s) + ' min to get back for the ' + next.start;
       } else {
@@ -886,6 +888,8 @@ function addAssumedDrives(items) {
     // A meeting inside a longer outing (a day in Whangarei with meetings in it) needs no drives of
     // its own; a pending invitation does not cover a firm engagement inside it.
     if (firm.some(x => x !== e && !piece(x) && x._s <= e._s && x._e >= e._e && x._e - x._s >= 180 && (!x.tbc || e.tbc))) return;
+    // A pending invitation that clashes with a firm engagement elsewhere: the CG is at the firm one.
+    if (e.tbc && firm.some(x => x !== e && !x.tbc && !piece(x) && x._s < e._e && e._s < x._e && !samePlace(x.venue, e.venue))) return;
     const home = RESIDENCE.test(e.venue);
     // Getting there
     const prev = firm.filter(x => x !== e && !piece(x) && x._s < e._s && x._e <= e._s + 15 && x._e >= e._s - 90).pop();
@@ -897,7 +901,7 @@ function addAssumedDrives(items) {
         id: 'drive-to-' + e.id, date: e.date, type: 'TRAVEL', tbc: !!e.tbc,
         title: 'Travel to ' + e.venue, venue: e.venue, map: e.map,
         start: hmOf(arrive - ASSUMED_DRIVE_MIN), end: hmOf(arrive),
-        _s: arrive - ASSUMED_DRIVE_MIN, _e: arrive, _clash: [], _timing: '',
+        _s: arrive - ASSUMED_DRIVE_MIN, _e: arrive, _k: e._s - 0.5, _clash: [], _timing: '',
         _guess: 'to', _for: e, _gFrom: prev ? placeOf(prev) : null
       }));
     }
@@ -910,15 +914,15 @@ function addAssumedDrives(items) {
         id: 'drive-back-' + e.id, date: e.date, type: 'TRAVEL', tbc: !!e.tbc,
         title: 'Return from ' + e.venue, venue: e.venue + (dest ? ' to ' + dest : ''),
         start: e.end, end: hmOf(e._e + ASSUMED_DRIVE_MIN),
-        _s: e._e, _e: e._e + ASSUMED_DRIVE_MIN, _clash: [], _timing: '',
+        _s: e._e, _e: e._e + ASSUMED_DRIVE_MIN, _k: e._e - 0.25, _clash: [], _timing: '',
         _guess: 'back', _for: e, _gFrom: e.venue
       });
     }
   });
   if (!legs.length) return items;
-  // Drives sort among the day by time; on a tie a drive comes first (a pick-up before the next start).
-  return items.concat(legs).map((x, i) => [x, i]).sort((a, b) => (a[0]._s - b[0]._s)
-    || ((b[0]._guess ? 1 : 0) - (a[0]._guess ? 1 : 0)) || (a[1] - b[1])).map(p => p[0]);
+  // A drive sits just before the engagement it leads to; a pick-up just after the one it ends.
+  const key = x => (x._k != null ? x._k : x._s);
+  return items.concat(legs).map((x, i) => [x, i]).sort((a, b) => (key(a[0]) - key(b[0])) || (a[1] - b[1])).map(p => p[0]);
 }
 
 /** What is happening now and next on one decorated day. */
