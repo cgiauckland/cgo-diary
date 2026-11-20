@@ -312,7 +312,7 @@
   .chip { padding: 1px 7px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: .2px; line-height: 1.5; }
   .chip.now { background: var(--green-bg); color: var(--green); }
   .chip.next { background: var(--blue-bg); color: var(--blue); }
-  .chip.tbc, .chip.proposed, .chip.timing { background: var(--amber-bg); color: var(--amber); }
+  .chip.tbc, .chip.proposed, .chip.timing, .chip.assumed { background: var(--amber-bg); color: var(--amber); }
   .chip.clash { background: var(--red-bg); color: var(--red); }
   .chip.diarised { background: var(--blue-bg); color: var(--blue); }
   .cvenue { margin-top: 4px; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
@@ -350,6 +350,7 @@
 
   .trow { display: flex; align-items: center; gap: 14px; margin: 0 0 8px; color: var(--travel); font-size: 14.5px; }
   .trow .tt { width: 69px; flex-shrink: 0; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .trow .tt small { display: block; font-size: 11.5px; font-weight: 600; opacity: .8; }
   .trow .leg {
     display: flex;
     flex: 1;
@@ -582,7 +583,12 @@ const SYNC_AT = [9, 45];          // weekday morning sync from Zoho (NZ time, af
 const SYNC_GRACE_MIN = 45;        // how long after SYNC_AT the sync should have landed
 const REFETCH_MS = 10 * 60 * 1000; // re-read the diary when older than this
 const CONSULATE_LABEL = 'CGI Auckland';
+const ASSUMED_DRIVE_MIN = 30;     // drive time assumed when Zoho has no travel block for an outside engagement
 // -----------------------------------------------------------------------
+// The Consulate as the office writes it (the same rule as the server's), and
+// engagements that need no drive however the venue is written.
+const CONSULATE_VENUE = /consulate general of india|indian consulate|\bCGI\b|SAP Tower|151 Queen St|\bin[\s-]?house\b|^\s*(the\s+)?(office|consulate)\s*$/i;
+const NO_DRIVE = /\b(online|virtual|zoom|teams|webex|video[\s-]?call|phone|telephone)\b/i;
 
 const $ = (id) => document.getElementById(id);
 $('app-title').textContent = APP_TITLE;
@@ -794,7 +800,8 @@ function shortPlace(v) {
 /** Adds past/clash/route/timing facts to one day's items (already sorted). */
 function decorateDay(list, d) {
   const today = todayStr(), nm = nowMin();
-  const items = list.map(e => Object.assign({}, e, { _s: toMin(e.start), _e: endMin(e), _clash: [], _timing: '' }));
+  let items = list.map(e => Object.assign({}, e, { _s: toMin(e.start), _e: endMin(e), _clash: [], _timing: '' }));
+  items = addAssumedDrives(items);
   items.forEach(it => {
     it._past = d < today || (d === today && !isAllDay(it) && it._e <= nm);
   });
@@ -813,11 +820,17 @@ function decorateDay(list, d) {
       const info = travelInfo(it);
       it._kind = info.kind;
       it._to = info.dest;
-      it._from = info.origin || lastPlace;
+      it._from = it._guess ? it._gFrom : (info.origin || lastPlace);
       const prev = firm.filter(x => x._s < it._s).pop();
       const next = firm.find(x => x._s >= it._s);
-      if (prev && prev._e > it._s) it._timing = 'leaves before the ' + prev.start + ' ends';
-      if (next && it._e > next._s) it._timing = 'arrives after the ' + next.start + ' starts';
+      if (it._guess === 'to') {
+        if (prev && prev._e > it._s && prev._e < it._e) it._timing = 'has only ' + (it._e - prev._e) + ' min after the ' + prev.start + ' ends';
+      } else if (it._guess === 'back') {
+        if (next && it._e > next._s) it._timing = 'leaves only ' + (next._s - it._s) + ' min to get back for the ' + next.start;
+      } else {
+        if (prev && prev._e > it._s) it._timing = 'leaves before the ' + prev.start + ' ends';
+        if (next && it._e > next._s) it._timing = 'arrives after the ' + next.start + ' starts';
+      }
       it._leadsTo = (next && next._s - it._e <= 45 && info.kind !== 'return') ? next : null;
       lastPlace = info.dest || (info.kind === 'return' ? null : lastPlace);
     } else if (isTimedEng(it) && isConfirmed(it) && it.venue) {
@@ -828,12 +841,83 @@ function decorateDay(list, d) {
   return items;
 }
 
+/** Same place, however the venue is written ("Panmure Community hall" / "Panmure community Hall, 7/13 ..."). */
+function samePlace(a, b) {
+  const k = v => shortPlace(v).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return !!a && !!b && k(a) === k(b);
+}
+/** An engagement away from the Consulate, so the CG has to be driven there. */
+function isOffsite(e) {
+  const v = String(e.venue || '').trim();
+  return isTimedEng(e) && isConfirmed(e) && !!v && !CONSULATE_VENUE.test(v)
+    && !NO_DRIVE.test(v + ' ' + (e.title || ''))
+    && e.start !== '00:00' && e.end !== '23:59';      // not one day of a multi-day trip
+}
+function hmOf(min) { min = Math.max(0, Math.min(1439, Math.round(min))); return pad(Math.floor(min / 60)) + ':' + pad(min % 60); }
+/** Arrival time from the note's "Arrival:" line ("17:45, met at the lobby", "5.45 pm"), in minutes. */
+function arriveMin(e) {
+  const m = String(e.arrive || '').match(/^\s*(\d{1,2})[:.](\d{2})\s*(am|pm|a\.m\.|p\.m\.)?/i);
+  if (!m) return null;
+  let h = +m[1];
+  if (m[3] && /^p/i.test(m[3]) && h < 12) h += 12;
+  if (m[3] && /^a/i.test(m[3]) && h === 12) h = 0;
+  const v = h * 60 + (+m[2]);
+  return v >= 0 && v < 1440 ? v : null;
+}
+
+/**
+ * Zoho often has no travel block for an outside engagement, yet the CG still has to be
+ * driven there and back. Adds an assumed drive before (arriving by the note's arrival
+ * time, else the start) and a pick-up after each such engagement, unless a travel block
+ * or another engagement at the same place already covers it. Assumed drives are marked
+ * NO TRAVEL BLOCK and never count as clashes.
+ */
+function addAssumedDrives(items) {
+  const firm = items.filter(x => isTimedEng(x) && isConfirmed(x));
+  const travel = items.filter(isTravel);
+  const legs = [];
+  const placeOf = x => (x && x.venue && !CONSULATE_VENUE.test(x.venue)) ? x.venue : CONSULATE_LABEL;
+  firm.filter(isOffsite).forEach(e => {
+    // Getting there
+    const prev = firm.filter(x => x !== e && x._s < e._s && x._e >= e._s - 90).pop();
+    const drove = travel.some(t => travelInfo(t).kind !== 'return' && t._s < e._s + 15 && t._e >= e._s - 60);
+    if (!drove && !(prev && samePlace(prev.venue, e.venue))) {
+      let arrive = arriveMin(e);
+      if (arrive == null || arrive > e._s || arrive < e._s - 120) arrive = e._s;
+      legs.push(Object.assign({}, {
+        id: 'drive-to-' + e.id, date: e.date, type: 'TRAVEL', tbc: !!e.tbc,
+        title: 'Travel to ' + e.venue, venue: e.venue, map: e.map,
+        start: hmOf(arrive - ASSUMED_DRIVE_MIN), end: hmOf(arrive),
+        _s: arrive - ASSUMED_DRIVE_MIN, _e: arrive, _clash: [], _timing: '',
+        _guess: 'to', _for: e, _gFrom: prev ? placeOf(prev) : null
+      }));
+    }
+    // Getting back (or on: the next outside engagement's drive starts here)
+    const next = firm.find(x => x !== e && x._s > e._s && x._s <= e._e + 90);
+    const left = travel.some(t => t._s >= e._e - 15 && t._s <= e._e + 45);
+    if (!left && !(next && (samePlace(next.venue, e.venue) || isOffsite(next)))) {
+      const dest = next ? placeOf(next) : null;
+      legs.push({
+        id: 'drive-back-' + e.id, date: e.date, type: 'TRAVEL', tbc: !!e.tbc,
+        title: 'Return from ' + e.venue, venue: e.venue + (dest ? ' to ' + dest : ''),
+        start: e.end, end: hmOf(e._e + ASSUMED_DRIVE_MIN),
+        _s: e._e, _e: e._e + ASSUMED_DRIVE_MIN, _clash: [], _timing: '',
+        _guess: 'back', _for: e, _gFrom: e.venue
+      });
+    }
+  });
+  if (!legs.length) return items;
+  // Drives sort among the day by time; on a tie a drive comes first (a pick-up before the next start).
+  return items.concat(legs).map((x, i) => [x, i]).sort((a, b) => (a[0]._s - b[0]._s)
+    || ((b[0]._guess ? 1 : 0) - (a[0]._guess ? 1 : 0)) || (a[1] - b[1])).map(p => p[0]);
+}
+
 /** What is happening now and next on one decorated day. */
 function focusOf(items, nm) {
   const firm = items.filter(x => isTimedEng(x) && isConfirmed(x));
   const now = firm.find(x => x._s <= nm && nm < x._e) || null;
   const next = firm.find(x => x._s > nm) || null;
-  const onWay = items.find(x => isTravel(x) && x._s <= nm && nm < x._e) || null;
+  const onWay = items.find(x => isTravel(x) && !x._guess && x._s <= nm && nm < x._e) || null;
   const leg = next ? items.filter(x => isTravel(x) && x._leadsTo === next).pop() || null : null;
   const nextLeg = items.find(x => isTravel(x) && x._e > nm) || null;
   return { now: now, next: next, onWay: onWay, leg: leg, nextLeg: nextLeg };
@@ -958,7 +1042,10 @@ function heroHtml(items, f, map) {
         + (noteMap(f.next) ? (f.next.venue ? ' &middot; ' : '') + mapsLink(noteMap(f.next)) : '') + '</div>' : '')
       + (f.next.arrive && !isReception() ? '<div class="hvenue">Arrive: ' + esc(f.next.arrive) + '</div>' : '');
     if (f.leg && !isReception()) {
-      if (f.leg._s > nm) {
+      if (f.leg._guess) {
+        h += '<div class="leave"><span>&#128663;</span><span>Drive needed: arrive by ' + esc(f.leg.end)
+          + (f.leg._from ? ' from ' + esc(shortPlace(f.leg._from)) : '') + '</span><span class="in">no travel block</span></div>';
+      } else if (f.leg._s > nm) {
         h += '<div class="leave"><span>&#128663;</span><span>Leave ' + esc(f.leg.start)
           + (f.leg._from ? ' from ' + esc(shortPlace(f.leg._from)) : '') + '</span><span class="in">' + esc(inText(f.leg._s - nm)) + '</span></div>';
       } else if (f.leg._e > nm) {
@@ -977,11 +1064,20 @@ function heroHtml(items, f, map) {
 function driverHero(items, f, map, nm) {
   let h = '<div class="hero">';
   const leg = f.nextLeg;
-  if (leg) {
+  if (leg && leg._guess) {
+    // Not in Zoho as a travel block: say when to arrive or pick up, not when to leave.
+    const pick = leg._guess === 'back';
+    h += '<div class="lbl">' + (pick ? 'Next pick-up' : 'Next drive') + ' <span class="pill">'
+      + esc(pick ? 'pick up ' + leg.start : 'arrive by ' + leg.end) + '</span></div>'
+      + '<div class="hmain"><div class="htime">' + esc(pick ? leg.start : leg.end) + '</div><div class="htitle">' + esc(routeText(leg)) + '</div></div>'
+      + '<div class="hvenue">No travel block in Zoho, so the leaving time is not set' + (pick ? '' : ': allow for the drive') + '.</div>';
+  } else if (leg) {
     const going = leg._s <= nm;
     h += '<div class="lbl">' + (going ? 'On the way' : 'Next drive') + ' <span class="pill">'
       + esc(going ? 'arrive ' + leg.end : inText(leg._s - nm)) + '</span></div>'
       + '<div class="hmain"><div class="htime">' + esc(leg.start) + '</div><div class="htitle">' + esc(routeText(leg)) + '</div></div>';
+  }
+  if (leg) {
     if (leg._leadsTo) h += driveDetail(leg._leadsTo);
     const pin = noteMap(leg) || noteMap(leg._leadsTo);
     const place = leg._to || (leg._leadsTo && leg._leadsTo.venue) || '';
@@ -990,7 +1086,10 @@ function driverHero(items, f, map, nm) {
   } else {
     h += '<div class="lbl">Today</div><div class="quiet">No more drives today.</div>';
     const ahead = firstAhead(map, isTravel);
-    if (ahead) h += '<div class="later">' + esc(dayWord(ahead.date)) + ': ' + esc(ahead.start) + ' · ' + esc(routeText(Object.assign({}, ahead, travelBits(ahead)))) + '</div>';
+    if (ahead) {
+      const when = ahead._guess === 'to' ? 'arrive by ' + ahead.end : ahead._guess === 'back' ? 'pick up ' + ahead.start : ahead.start;
+      h += '<div class="later">' + esc(dayWord(ahead.date)) + ': ' + esc(when) + ' · ' + esc(routeText(ahead)) + '</div>';
+    }
   }
   return h + '</div>';
 }
@@ -1004,14 +1103,13 @@ function driveDetail(e) {
   if (e.programme) h += '<div><b>Programme:</b> ' + esc(e.programme) + '</div>';
   return h + '</div>';
 }
-function travelBits(e) { const i = travelInfo(e); return { _to: i.dest, _from: i.origin, _kind: i.kind }; }
 
-/** First item after today (within the loaded data) that matches. */
+/** First item after today (within the loaded data, assumed drives included) that matches. */
 function firstAhead(map, test) {
   const today = todayStr();
   const days = Object.keys(map).filter(d => d > today).sort();
   for (const d of days) {
-    const hit = map[d].find(test);
+    const hit = decorateDay(map[d], d).find(test);
     if (hit) return hit;
   }
   return null;
@@ -1043,9 +1141,14 @@ function routeText(it) {
 function travelRow(it, flags) {
   const r = document.createElement('div');
   r.className = 'trow' + (isDriver() ? ' driver' : '') + (it._past ? ' past' : '');
-  const dur = fmtDur(it._e - it._s);
-  let html = '<span class="tt">' + esc(it.start) + '</span><div class="leg"><span>&#128663;</span>'
+  const dur = it._guess ? '' : fmtDur(it._e - it._s);
+  // An assumed drive shows what is known: arrive by (the note's arrival time or the start),
+  // or pick up at the end. The leaving time is not in Zoho.
+  const tt = it._guess === 'to' ? esc(it.end) + '<small>arrive</small>'
+    : it._guess === 'back' ? esc(it.start) + '<small>pick up</small>' : esc(it.start);
+  let html = '<span class="tt">' + tt + '</span><div class="leg"><span>&#128663;</span>'
     + '<span class="route">' + esc(routeText(it)) + '</span>';
+  if (it._guess) html += '<span class="chip assumed" title="Not in Zoho as a travel block. The drive is assumed, about ' + ASSUMED_DRIVE_MIN + ' minutes.">NO TRAVEL BLOCK</span>';
   if (it.tbc) html += '<span class="chip tbc">TBC</span>';
   if (flags.now) html += '<span class="chip now">ON THE WAY</span>';
   if (it._timing) html += '<span class="chip timing" title="' + esc(it._timing) + '">CHECK TIMING</span>';
@@ -1056,7 +1159,7 @@ function travelRow(it, flags) {
   html += '</div>';
   r.innerHTML = html;
   if (it._timing) {
-    r.querySelector('.leg').insertAdjacentHTML('beforeend', '<span class="dur" style="flex-basis:100%;margin-left:0">This drive ' + esc(it._timing) + '.</span>');
+    r.querySelector('.leg').insertAdjacentHTML('beforeend', '<span class="dur" style="flex-basis:100%;margin-left:0;white-space:normal">This drive ' + esc(it._timing) + '.</span>');
   }
   return r;
 }
