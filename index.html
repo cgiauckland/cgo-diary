@@ -589,6 +589,8 @@ const ASSUMED_DRIVE_MIN = 30;     // drive time assumed when Zoho has no travel 
 // engagements that need no drive however the venue is written.
 const CONSULATE_VENUE = /consulate general of india|indian consulate|\bCGI\b|SAP Tower|151 Queen St|\bin[\s-]?house\b|^\s*(the\s+)?(office|consulate)\s*$/i;
 const NO_DRIVE = /\b(online|virtual|zoom|teams|webex|video[\s-]?call|phone|telephone)\b/i;
+// The CG's residence: no drive to it first thing, and none after an evening there.
+const RESIDENCE = /\bindia house\b|\bCG'?s? residence\b|residence of the consul[\s-]general of india/i;
 
 const $ = (id) => document.getElementById(id);
 $('app-title').textContent = APP_TITLE;
@@ -824,7 +826,9 @@ function decorateDay(list, d) {
       const prev = firm.filter(x => x._s < it._s).pop();
       const next = firm.find(x => x._s >= it._s);
       if (it._guess === 'to') {
-        if (prev && prev._e > it._s && prev._e < it._e) it._timing = 'has only ' + (it._e - prev._e) + ' min after the ' + prev.start + ' ends';
+        if (prev && prev._e > it._s && prev._e <= it._e) {
+          it._timing = prev._e === it._e ? 'has no time after the ' + prev.start + ' ends' : 'has only ' + (it._e - prev._e) + ' min after the ' + prev.start + ' ends';
+        }
       } else if (it._guess === 'back') {
         if (next && it._e > next._s) it._timing = 'leaves only ' + (next._s - it._s) + ' min to get back for the ' + next.start;
       } else {
@@ -877,11 +881,16 @@ function addAssumedDrives(items) {
   const travel = items.filter(isTravel);
   const legs = [];
   const placeOf = x => (x && x.venue && !CONSULATE_VENUE.test(x.venue)) ? x.venue : CONSULATE_LABEL;
+  const piece = x => x.start === '00:00' || x.end === '23:59';     // one day of a multi-day entry
   firm.filter(isOffsite).forEach(e => {
+    // A meeting inside a longer outing (a day in Whangarei with meetings in it) needs no drives of
+    // its own; a pending invitation does not cover a firm engagement inside it.
+    if (firm.some(x => x !== e && !piece(x) && x._s <= e._s && x._e >= e._e && x._e - x._s >= 180 && (!x.tbc || e.tbc))) return;
+    const home = RESIDENCE.test(e.venue);
     // Getting there
-    const prev = firm.filter(x => x !== e && x._s < e._s && x._e >= e._s - 90).pop();
+    const prev = firm.filter(x => x !== e && !piece(x) && x._s < e._s && x._e <= e._s + 15 && x._e >= e._s - 90).pop();
     const drove = travel.some(t => travelInfo(t).kind !== 'return' && t._s < e._s + 15 && t._e >= e._s - 60);
-    if (!drove && !(prev && samePlace(prev.venue, e.venue))) {
+    if (!drove && !(prev && samePlace(prev.venue, e.venue)) && !(home && !prev)) {
       let arrive = arriveMin(e);
       if (arrive == null || arrive > e._s || arrive < e._s - 120) arrive = e._s;
       legs.push(Object.assign({}, {
@@ -893,9 +902,9 @@ function addAssumedDrives(items) {
       }));
     }
     // Getting back (or on: the next outside engagement's drive starts here)
-    const next = firm.find(x => x !== e && x._s > e._s && x._s <= e._e + 90);
+    const next = firm.find(x => x !== e && !piece(x) && x._s > e._s && x._s >= e._e - 15 && x._s <= e._e + 90);
     const left = travel.some(t => t._s >= e._e - 15 && t._s <= e._e + 45);
-    if (!left && !(next && (samePlace(next.venue, e.venue) || isOffsite(next)))) {
+    if (!left && !(next && (samePlace(next.venue, e.venue) || isOffsite(next))) && !(home && !next)) {
       const dest = next ? placeOf(next) : null;
       legs.push({
         id: 'drive-back-' + e.id, date: e.date, type: 'TRAVEL', tbc: !!e.tbc,
