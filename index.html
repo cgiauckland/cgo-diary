@@ -826,8 +826,8 @@ function decorateDay(list, d) {
       const prev = firm.filter(x => x._s < it._s).pop();
       const next = firm.find(x => x._s >= it._s);
       if (!it._guess) {            // a drive marker has no times of its own to check
-        if (prev && prev._e > it._s) it._timing = 'leaves before the ' + prev.start + ' ends';
-        if (next && it._e > next._s) it._timing = 'arrives after the ' + next.start + ' starts';
+        if (prev && prev._e > it._s) it._timing = 'starts before the ' + prev.start + ' engagement ends';
+        if (next && it._e > next._s) it._timing = 'gets there after the ' + next.start + ' engagement starts';
       }
       it._leadsTo = (next && next._s - it._e <= 45 && info.kind !== 'return') ? next : null;
       lastPlace = info.dest || (info.kind === 'return' ? null : lastPlace);
@@ -856,7 +856,7 @@ function isOffsite(e) {
  * driven there and back. Adds a drive marker just before and just after each such
  * engagement, unless a travel block or another engagement at the same place already
  * covers it. A marker says only that a drive is needed: it carries no times of its own,
- * is marked NO TRAVEL BLOCK, and never counts as a clash or a timing problem.
+ * is marked TIME NOT SET, and never counts as a clash or a timing problem.
  */
 function addAssumedDrives(items) {
   const firm = items.filter(x => isTimedEng(x) && isConfirmed(x));
@@ -1034,8 +1034,8 @@ function heroHtml(items, f, map) {
       + (f.next.arrive && !isReception() ? '<div class="hvenue">Arrive: ' + esc(f.next.arrive) + '</div>' : '');
     if (f.leg && !isReception()) {
       if (f.leg._guess) {
-        h += '<div class="leave"><span>&#128663;</span><span>Drive needed'
-          + (f.leg._from ? ' from ' + esc(shortPlace(f.leg._from)) : '') + '</span><span class="in">no travel block</span></div>';
+        h += '<div class="leave"><span>&#128663;</span><span>'
+          + (f.leg._from ? 'Drive from ' + esc(shortPlace(f.leg._from)) : 'Drive needed') + '</span><span class="in">time not set</span></div>';
       } else if (f.leg._s > nm) {
         h += '<div class="leave"><span>&#128663;</span><span>Leave ' + esc(f.leg.start)
           + (f.leg._from ? ' from ' + esc(shortPlace(f.leg._from)) : '') + '</span><span class="in">' + esc(inText(f.leg._s - nm)) + '</span></div>';
@@ -1056,12 +1056,10 @@ function driverHero(items, f, map, nm) {
   let h = '<div class="hero">';
   const leg = f.nextLeg;
   if (leg && leg._guess) {
-    // Not in Zoho as a travel block: say a drive is needed, and for which engagement.
-    const back = leg._guess === 'back';
-    h += '<div class="lbl">Next drive <span class="pill">no travel block</span></div>'
+    // No drive time in the calendar: say a drive is needed, and for which engagement.
+    h += '<div class="lbl">Next drive <span class="pill">time not set</span></div>'
       + '<div class="hmain"><div class="htitle">' + esc(markerText(leg)) + '</div></div>'
-      + '<div class="hvenue">' + esc(back ? 'After the engagement that ends at ' + leg._for.end : 'For the engagement at ' + leg._for.start)
-      + '. Not in Zoho as a travel block.</div>';
+      + '<div class="hvenue">' + esc(markerWhy(leg)) + '. The calendar has no time for this drive yet.</div>';
   } else if (leg) {
     const going = leg._s <= nm;
     h += '<div class="lbl">' + (going ? 'On the way' : 'Next drive') + ' <span class="pill">'
@@ -1078,8 +1076,8 @@ function driverHero(items, f, map, nm) {
     h += '<div class="lbl">Today</div><div class="quiet">No more drives today.</div>';
     const ahead = firstAhead(map, isTravel);
     if (ahead) {
-      const when = ahead._guess === 'to' ? 'drive for the ' + ahead._for.start : ahead._guess === 'back' ? 'drive after the ' + ahead._for.end : ahead.start;
-      h += '<div class="later">' + esc(dayWord(ahead.date)) + ': ' + esc(when) + ' · ' + esc(ahead._guess ? markerText(ahead) : routeText(ahead)) + '</div>';
+      const what = ahead._guess ? markerText(ahead) + ', ' + markerWhy(ahead).toLowerCase() : ahead.start + ' · ' + routeText(ahead);
+      h += '<div class="later">' + esc(dayWord(ahead.date)) + ': ' + esc(what) + '</div>';
     }
   }
   return h + '</div>';
@@ -1120,12 +1118,18 @@ function rowEl(it, flags) {
   return card(it, flags);
 }
 
-/** "Drive to Shed 10", "Drive back from WG atrium", "Drive: Shed 10 → WG atrium". */
+/** "Drive to Shed 10", "Drive back from WG atrium", "Drive from Shed 10 to WG atrium". */
 function markerText(it) {
-  const r = routeText(it);
-  if (/^To /.test(r)) return 'Drive to ' + r.slice(3);
-  if (/^Return from /.test(r)) return 'Drive back from ' + r.slice(12);
-  return 'Drive: ' + r;
+  const from = it._from ? shortPlace(it._from) : '';
+  const to = it._to ? shortPlace(it._to) : '';
+  if (from && to) return 'Drive from ' + from + ' to ' + to;
+  if (to) return 'Drive to ' + to;
+  if (from) return 'Drive back from ' + from;
+  return 'Drive';
+}
+/** Which engagement a drive marker belongs to, in plain words. */
+function markerWhy(it) {
+  return it._guess === 'back' ? 'After the engagement ends at ' + it._for.end : 'For the engagement at ' + it._for.start;
 }
 function routeText(it) {
   const from = it._from ? shortPlace(it._from) : '';
@@ -1139,11 +1143,11 @@ function routeText(it) {
 function travelRow(it, flags) {
   const r = document.createElement('div');
   r.className = 'trow' + (isDriver() ? ' driver' : '') + (it._past ? ' past' : '');
-  // A drive marker (no travel block in Zoho) only says that a drive is needed: no times.
+  // A drive marker (no drive time in the calendar) only says that a drive is needed: no times.
   const dur = it._guess ? '' : fmtDur(it._e - it._s);
   let html = '<span class="tt">' + (it._guess ? '' : esc(it.start)) + '</span><div class="leg"><span>&#128663;</span>'
     + '<span class="route">' + esc(it._guess ? markerText(it) : routeText(it)) + '</span>';
-  if (it._guess) html += '<span class="chip assumed" title="Not in Zoho as a travel block.">NO TRAVEL BLOCK</span>';
+  if (it._guess) html += '<span class="chip assumed" title="The calendar has no time for this drive yet.">TIME NOT SET</span>';
   if (it.tbc) html += '<span class="chip tbc">TBC</span>';
   if (flags.now) html += '<span class="chip now">ON THE WAY</span>';
   if (it._timing) html += '<span class="chip timing" title="' + esc(it._timing) + '">CHECK TIMING</span>';
@@ -1190,13 +1194,16 @@ function card(it, flags) {
   html += '<div class="ctitle">' + esc(heading) + (chips ? '<span class="chips">' + chips + '</span>' : '') + '</div>';
 
   // Venue, then a Google Maps link: the one from the Zoho note when there is one,
-  // otherwise a search for the venue (directions for the driver).
+  // otherwise a search for the venue (directions for the driver). An online or phone
+  // engagement has no place to find, so it gets no map link of its own.
   const pin = noteMap(it);
+  const remote = NO_DRIVE.test((it.venue || '') + ' ' + (it.title || ''));
   if (it.venue || pin) {
-    html += '<div class="cvenue">&#128205; ' + (it.venue ? esc(it.venue) + ' &middot; ' : '')
-      + mapsLink(pin || (isDriver() ? dirUrl(it.venue) : mapUrl(it.venue))) + '</div>';
+    const link = pin || (remote ? '' : (isDriver() ? dirUrl(it.venue) : mapUrl(it.venue)));
+    html += '<div class="cvenue">&#128205; ' + (it.venue ? esc(it.venue) : '')
+      + (link ? (it.venue ? ' &middot; ' : '') + mapsLink(link) : '') + '</div>';
   }
-  if (isDriver() && !isAllDay(it) && it._e > it._s) html += '<div class="cline">On site ' + esc(fmtDur(it._e - it._s)) + '</div>';
+  if (isDriver() && !isAllDay(it) && it._e > it._s) html += '<div class="cline">' + (remote ? 'Lasts ' : 'On site ') + esc(fmtDur(it._e - it._s)) + '</div>';
   if (it.arrive) html += '<div class="cline"><b>Arrive:</b> ' + esc(it.arrive) + '</div>';
   if (it.parking) html += '<div class="cline"><b>Parking:</b> ' + esc(it.parking) + '</div>';
   if (it.programme) html += '<div class="cline"><b>Programme:</b> ' + esc(it.programme) + '</div>';
